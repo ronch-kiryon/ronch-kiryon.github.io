@@ -64,6 +64,8 @@ textarea{min-height:76px}
 .chip.on.e{background:var(--dusk);border-color:var(--dusk);color:var(--bg)}
 .chip.on.n{background:var(--line)}
 .chip.on.x{background:var(--crust);border-color:var(--crust);color:#fff}
+.chip.on.a{background:#d9822b;border-color:#d9822b;color:#fff}
+.sec.a,.tag.a{background:#f6dcc0;color:#6b3a0c}
 .sec.x,.tag.x{background:var(--crust);color:#fff}
 .sec{font-size:13px;font-weight:700;margin:10px 0 4px;padding:2px 10px;border-radius:999px;display:inline-block}
 .sec.m{background:var(--wheatS)}.sec.e{background:var(--duskS)}
@@ -124,10 +126,10 @@ const BR='RONCH';
 const DAYS=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
 const DS=['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
 const MONTHS=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-const OPTS={m7:{s:'m',a:'07:00',b:'14:30'},m830:{s:'m',a:'08:30',b:null},m10:{s:'m',a:'10:00',b:'14:30'},e330:{s:'e',a:'15:30',b:'22:00'},e430:{s:'e',a:'16:30',b:'22:00'},mss:{s:'x',a:'צאת שבת',b:'22:30'}};
+const OPTS={m7:{s:'m',a:'07:00',b:'14:30'},m830:{s:'m',a:'08:30',b:null},m10:{s:'m',a:'10:00',b:'14:30'},e330:{s:'e',a:'15:30',b:'22:00'},e430:{s:'e',a:'16:30',b:'22:00'},mss:{s:'x',a:'צאת שבת',b:'22:30'},a630:{s:'a',a:'06:30',b:'14:30'}};
 const REASONS={abroad:'חופשה בחו״ל',family:'אירוע משפחתי',errands:'סידורים אישיים',other:'סיבה אישית אחרת'};
 const STN={pending:'ממתין לאישור',approved:'אושר',rejected:'נדחה',cancelled:'בוטל'};
-const DEF={days:[0,1,2,3,4,5],ev:2,m10:true,ms:true,msNeed:2,mgrPhone:''};
+const DEF={days:[0,1,2,3,4,5],ev:2,m10:true,ms:true,msNeed:2,bake:true,mgrPhone:''};
 const LEAD=14;
 const S={uid:null,owner:false,mode:'emp',cfg:DEF,session:null,auth:'login',recovery:false,
   me:undefined,acct:{},avail:{},leave:{},pub:null,pubAll:{},schedAll:{},
@@ -156,11 +158,12 @@ function left(wk){const n=ilParts();const a=new Date(n.date+'T'+n.time+':00Z'),b
 const isWork=d=>S.cfg.days.map(Number).includes(+d);
 const msOn=()=>S.cfg.ms!==false;
 const days=()=>{const a=S.cfg.days.map(Number);if(msOn()&&!a.includes(6))a.push(6);return a.sort((x,y)=>x-y)};
-const TYPES=()=>['m','e',...(msOn()?['x']:[])];
+const bakeOn=()=>S.cfg.bake!==false;
+const TYPES=()=>[...(bakeOn()?['a']:[]),'m','e',...(msOn()?['x']:[])];
 const arr=v=>Array.isArray(v)?v.filter(o=>OPTS[o]):(OPTS[v]?[v]:[]);
 const pk=(p,d)=>arr((p||{})[d]);
 const hasS=(p,d,s)=>pk(p,d).some(o=>OPTS[o].s===s);
-const sName=s=>s==='m'?'בוקר':s==='x'?'מוצ״ש':'ערב';
+const sName=s=>s==='m'?'בוקר':s==='x'?'מוצ״ש':s==='a'?'אפייה':'ערב';
 const pickTxt=os=>os.map(o=>sName(OPTS[o].s)+' '+tLabel(o)).join(', ');
 function ranges(ds){const s=[...ds].sort(),out=[];s.forEach(k=>{const l=out[out.length-1];if(l&&addDays(l[1],1)===k)l[1]=k;else out.push([k,k])});return out.map(([a,b])=>a===b?fmtD(a):fmtD(a)+' עד '+fmtD(b)).join(', ')}
 function phoneIntl(p){let d=String(p||'').replace(/\D/g,'');if(!d)return '';if(d.startsWith('0'))d='972'+d.slice(1);return d}
@@ -265,7 +268,7 @@ function render(){
 }
 function header(){
   const showWk=S.mode==='mgr'?['subs','sched','hist'].includes(S.tab):(S.me&&S.etab==='av');
-  const ds=days(),rng=ds.length?dDate(S.wk,ds[0])+'–'+dDate(S.wk,ds[ds.length-1]):dDate(S.wk,0);
+  const ds=days(),rng=ds.length?dDate(S.wk,ds[0])+' עד '+dDate(S.wk,ds[ds.length-1]):dDate(S.wk,0);
   const lk=isLockedWk(S.wk);
   return `<header class="top"><div class="row"><div><h1>סידור עבודה · סניף הקריון</h1><small>${S.mode==='mgr'?'מסך מנהל':'אזור אישי'}</small></div>
   ${S.owner?`<div class="chips"><button class="${S.mode==='mgr'?'on':''}" data-act="mode" data-v="mgr">מנהל</button><button class="${S.mode==='emp'?'on':''}" data-act="mode" data-v="emp">עובד</button></div>`:''}</div>
@@ -314,13 +317,13 @@ function empAvail(){
   const prevW=(S.avail.weeks||{})[addDays(S.wk,-7)];
   if(ed&&prevW&&Object.keys(prevW.picks||{}).length)h+=`<p style="margin:0 0 12px"><button data-act="copyPrev">העתקת הזמינות מהשבוע הקודם</button></p>`;
   const myLv=myReqs().filter(r=>r.st==='pending'||r.st==='approved');
-  const chOf=d=>['',...(isWork(d)?['m7','m830',...(S.cfg.m10?['m10']:[]),'e330','e430']:[]),...(d===6&&msOn()?['mss']:[])];
+  const chOf=d=>['',...(isWork(d)?[...(bakeOn()?['a630']:[]),'m7','m830',...(S.cfg.m10?['m10']:[]),'e330','e430']:[]),...(d===6&&msOn()?['mss']:[])];
   h+='<div class="grid">'+ds.map(d=>{const lr=myLv.find(r=>r.dates.includes(addDays(S.wk,d)));return `<div class="day"><div class="dh"><b>${DAYS[d]}</b><span>${dDate(S.wk,d)}</span></div>${lr?`<div class="note" style="padding:6px 10px;margin-bottom:8px;font-size:14px">יש לך בקשת חופש ליום הזה (${STN[lr.st]})</div>`:''}<div class="chips">`+
     chOf(d).map(o=>{const on=o?pk(picks,d).includes(o):!pk(picks,d).length,s=o?OPTS[o].s:'n';return `<button class="chip ${s} ${on?'on':''}" data-act="pick" data-d="${d}" data-o="${o}" aria-pressed="${on}" ${ed?'':'disabled'}>${o?sName(s)+' <span dir="ltr">'+tLabel(o)+'</span>':'לא זמין'}</button>`}).join('')+'</div></div>'}).join('')+'</div>';
   const note=S.form.note!==undefined?S.form.note:(x&&x.note)||'';
   h+=`<label style="margin-top:16px">הערה למנהל (לא חובה)<textarea id="note" ${ed?'':'disabled'} placeholder="למשל: ביום שלישי אני יכול רק עד 14:00">${esc(note)}</textarea></label></div>`;
   const cnt=s=>ds.filter(d=>hasS(picks,d,s)).length;
-  if(ed)h+=`<div class="bar"><button class="pri" data-act="submit">${x?'עדכון הזמינות':'שליחת זמינות'}</button><span>${cnt('m')} ימי בוקר · ${cnt('e')} ימי ערב${msOn()?' · '+(cnt('x')?'מוצ״ש ✓':'בלי מוצ״ש'):''}</span>
+  if(ed)h+=`<div class="bar"><button class="pri" data-act="submit">${x?'עדכון הזמינות':'שליחת זמינות'}</button><span>${bakeOn()&&cnt('a')?cnt('a')+' ימי אפייה · ':''}${cnt('m')} ימי בוקר · ${cnt('e')} ימי ערב${msOn()?' · '+(cnt('x')?'מוצ״ש ✓':'בלי מוצ״ש'):''}</span>
     ${S.dirty?'<span class="mute">יש שינויים שלא נשלחו</span>':x?'<span class="ok">ההגשה שמורה ✓</span>':''}</div>`;
   return h;
 }
@@ -329,7 +332,7 @@ function changeTxt(prev,now){const ch=days().filter(d=>JSON.stringify(pk(prev,d)
 function availMsg(s){const name=S.me?S.me.name:'',p=ilParts(s.t),end=fmtD(addDays(s.wk,6));
   if(s.kind==='sub')return `📩 הגשת זמינות חדשה – ${BR}\n\nעובד: ${name}.\n\nהגיש זמינות לשבוע:\n${fmtD(s.wk)} עד ${end}.\n\nשעת הגשה: ${p.time}.`;
   const c=changeTxt(s.prev,s.now);
-  return `🔄 עדכון זמינות – ${BR}\n\nעובד: ${name}.\n\nעדכן את הזמינות שלו לשבוע ${fmtD(s.wk)}–${end}.\n\nמועד עדכון: יום ${DAYS[parse(p.date).getDay()]}, ${p.time}.\n\nשינוי שבוצע:\n${c.join('\n')||'עדכון הערה'}`}
+  return `🔄 עדכון זמינות – ${BR}\n\nעובד: ${name}.\n\nעדכן את הזמינות שלו לשבוע ${fmtD(s.wk)} עד ${end}.\n\nמועד עדכון: יום ${DAYS[parse(p.date).getDay()]}, ${p.time}.\n\nשינוי שבוצע:\n${c.join('\n')||'עדכון הערה'}`}
 /* leave */
 function calendar(min,had){
   if(!S.cal){const t=parse(min||ilToday());S.cal=ymd(new Date(t.getFullYear(),t.getMonth(),1))}
@@ -365,7 +368,7 @@ function dash(){
   const ow=openWeek(),st=S.staff.filter(s=>active(s)&&s.role!=='manager'),done=st.filter(s=>((S.availAll[s.id]||{}).weeks||{})[ow]),not=st.filter(s=>!done.includes(s));
   const R=allReqs(),c=k=>R.filter(r=>r.st===k).length,ev=events(),nw=ev.filter(e=>e.t>S.seen);
   const pd=pendingStaff();let h=pd.length?`<div class="warn"><b>${pd.length} נרשמים חדשים ממתינים לאישור שלך:</b> ${pd.map(s=>esc(s.name)).join(', ')} <button class="x" data-act="tab" data-v="staff">לאישור</button></div>`:'';
-  h+=`<h2>מחזור ההגשה הפתוח: שבוע ${fmtD(ow)}–${fmtD(addDays(ow,6))}</h2><p class="mute" style="margin-top:-6px">ההגשה נסגרת אוטומטית ביום רביעי ${fmtD(deadline(ow))} ב-13:00 שעון ישראל (נותרו ${left(ow)}).</p>`;
+  h+=`<h2>מחזור ההגשה הפתוח: שבוע ${fmtD(ow)} עד ${fmtD(addDays(ow,6))}</h2><p class="mute" style="margin-top:-6px">ההגשה נסגרת אוטומטית ביום רביעי ${fmtD(deadline(ow))} ב-13:00 שעון ישראל (נותרו ${left(ow)}).</p>`;
   h+=`<div class="tiles"><div class="tile"><b>${done.length}</b>הגישו זמינות</div><div class="tile ${not.length?'hot':''}"><b>${not.length}</b>עוד לא הגישו</div>
    <button class="tile ${c('pending')?'hot':''}" data-act="lf" data-v="pending"><b>${c('pending')}</b>חופשות ממתינות</button><button class="tile" data-act="lf" data-v="approved"><b>${c('approved')}</b>חופשות שאושרו</button><button class="tile" data-act="lf" data-v="rejected"><b>${c('rejected')}</b>חופשות שנדחו</button></div>`;
   h+=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));align-items:start">`;
@@ -405,7 +408,7 @@ function board(edit,meId){
     let h=`<div class="day"><div class="dh"><b>${DAYS[d]}</b><span>${dDate(S.wk,d)}</span></div>`,miss=0;
     const multi=(s,need,lbl)=>{const l=c.filter(y=>OPTS[y.o]&&OPTS[y.o].s===s);h+=`<span class="sec ${s}">${lbl}</span>`;l.forEach(x=>{h+=row(x.o,x)});
       if(edit&&l.length<need)h+=row(s,null,addOpts(d,s));if(!edit&&!l.length)h+='<div class="slot"><span class="t">—</span><span class="mute">אין</span><span></span></div>';miss+=Math.max(0,need-l.length)};
-    if(isWork(d)){h+='<span class="sec m">בוקר</span>';
+    if(isWork(d)){if(bakeOn()){h+='<span class="sec a">אפייה</span>';const ax=c.find(y=>y.o==='a630');h+=row('a630',ax,edit?addOpts(d,'a630'):'');if(!ax)miss++;h+='<br>'}h+='<span class="sec m">בוקר</span>';
       ms.forEach(o=>{const x=c.find(y=>y.o===o);if(!x&&!edit&&o==='m10')return;h+=row(o,x,edit?addOpts(d,o):'')});
       miss+=(c.find(y=>y.o==='m7')?0:1)+(c.find(y=>y.o==='m830')?0:1);h+='<br>';multi('e',ev,'ערב')}
     if(d===6&&msOn()){if(isWork(d))h+='<br>';multi('x',+S.cfg.msNeed||1,'מוצאי שבת')}
@@ -416,8 +419,8 @@ function board(edit,meId){
 }
 function flags(x,d){const k=addDays(S.wk,d),f=[];const st=S.staff.find(s=>s.id===x.e);
   if(onLeave(x.e,k))f.push('בחופש מאושר');if(st&&!active(st))f.push('חשבון מושבת');
-  if((x.o==='m7'||x.o==='m830')&&cellsOf(d-1).some(y=>y.e===x.e&&OPTS[y.o]&&OPTS[y.o].s==='e'))f.push('סגר אתמול בערב');
-  if(OPTS[x.o]&&OPTS[x.o].s==='e'&&cellsOf(+d+1).some(y=>y.e===x.e&&(y.o==='m7'||y.o==='m830')))f.push('פותח מחר בבוקר');
+  if((x.o==='m7'||x.o==='m830'||x.o==='a630')&&cellsOf(d-1).some(y=>y.e===x.e&&OPTS[y.o]&&OPTS[y.o].s==='e'))f.push('סגר אתמול בערב');
+  if(OPTS[x.o]&&OPTS[x.o].s==='e'&&cellsOf(+d+1).some(y=>y.e===x.e&&(y.o==='m7'||y.o==='m830'||y.o==='a630')))f.push('פותח מחר בבוקר');
   return f.length?` <span class="flag">(${f.join(', ')})</span>`:''}
 function issues(){const out=[];days().forEach(d=>cellsOf(d).forEach(x=>{const k=addDays(S.wk,d),st=S.staff.find(s=>s.id===x.e);
   if(onLeave(x.e,k))out.push(`${nameOf(x.e)} משובץ ביום ${DAYS[d]} אבל יש לו חופש מאושר`);
@@ -505,6 +508,7 @@ function setTab(){
   const c=S.cfg;
   return `<h2>ימי עבודה</h2><div class="chips" style="margin-bottom:22px">${DAYS.map((n,i)=>`<button class="chip m ${c.days.map(Number).includes(i)?'on':''}" data-act="day" data-d="${i}">${n}</button>`).join('')}</div>
   <h2>משמרות</h2><div class="steps" style="margin-bottom:10px"><div class="step"><span>עובדים בערב</span><button data-act="ev" data-n="-1">−</button><output>${c.ev}</output><button data-act="ev" data-n="1">+</button></div></div>
+  <p style="margin:0 0 12px"><button class="chip a ${bakeOn()?'on':''}" data-act="bakeT">אפייה 06:30–14:30 ${bakeOn()?'פעיל':'כבוי'}</button></p>
   <p style="margin:0 0 12px"><button class="chip x ${msOn()?'on':''}" data-act="msT">מוצ״ש (צאת שבת–22:30) ${msOn()?'פעיל':'כבוי'}</button></p>
   ${msOn()?`<div class="steps" style="margin-bottom:12px"><div class="step"><span>עובדים במוצ״ש</span><button data-act="msN" data-n="-1">−</button><output>${+c.msNeed||1}</output><button data-act="msN" data-n="1">+</button></div></div>`:''}
   <p style="margin:0 0 26px"><button class="chip m ${c.m10?'on':''}" data-act="m10">בוקר 10:00–14:30 ${c.m10?'פעיל':'כבוי'}</button></p>
@@ -515,11 +519,11 @@ function setTab(){
 function auto(){
   const ds=days(),ev=+S.cfg.ev||1,cells={},warn=[];ds.forEach(d=>cells[d]=[]);
   const ids=people().map(e=>e.id).filter(id=>S.subs[id]),need={};
-  const TY=TYPES();ids.forEach(id=>{const t=S.tg[id]||{};need[id]={m:+t.m||0,e:+t.e||0,x:TY.includes('x')?+t.x||0:0}});
+  const TY=TYPES();ids.forEach(id=>{const t=S.tg[id]||{};need[id]={a:TY.includes('a')?+t.a||0:0,m:+t.m||0,e:+t.e||0,x:TY.includes('x')?+t.x||0:0}});
   const P=id=>S.subs[id].picks||{};
   const load=(d,s)=>cells[d].filter(x=>OPTS[x.o].s===s).length;
-  const ev2=(id,d)=>(cells[d]||[]).some(x=>x.e===id&&OPTS[x.o].s==='e'),mo2=(id,d)=>(cells[d]||[]).some(x=>x.e===id&&(x.o==='m7'||x.o==='m830'));
-  const pick=(id,d,s)=>{const c=cells[d];if(c.some(x=>x.e===id))return null;if(onLeave(id,addDays(S.wk,d)))return null;if(s==='e'&&mo2(id,d+1))return null;const os=pk(P(id),d).filter(o=>OPTS[o].s===s);if(s==='e')return load(d,'e')<ev&&os.length?os[0]:null;if(s==='x')return load(d,'x')<(+S.cfg.msNeed||1)&&os.length?os[0]:null;if(!isWork(d))return null;return os.find(o=>!c.some(x=>x.o===o)&&!((o==='m7'||o==='m830')&&ev2(id,d-1)))||null};
+  const ev2=(id,d)=>(cells[d]||[]).some(x=>x.e===id&&OPTS[x.o].s==='e'),mo2=(id,d)=>(cells[d]||[]).some(x=>x.e===id&&(x.o==='m7'||x.o==='m830'||x.o==='a630'));
+  const pick=(id,d,s)=>{const c=cells[d];if(c.some(x=>x.e===id))return null;if(onLeave(id,addDays(S.wk,d)))return null;if(s==='e'&&mo2(id,d+1))return null;const os=pk(P(id),d).filter(o=>OPTS[o].s===s);if(s==='e')return load(d,'e')<ev&&os.length?os[0]:null;if(s==='x')return load(d,'x')<(+S.cfg.msNeed||1)&&os.length?os[0]:null;if(!isWork(d))return null;return os.find(o=>!c.some(x=>x.o===o)&&!((o==='m7'||o==='m830'||o==='a630')&&ev2(id,d-1)))||null};
   const room=(id,s)=>ds.filter(d=>pick(id,d,s)).length-need[id][s];
   for(let go=true;go;){go=false;
     const order=[];ids.forEach(id=>TY.forEach(s=>{if(need[id][s]>0)order.push([id,s])}));
@@ -539,7 +543,7 @@ function fitText(c,t,max,size,weight){let s=size;do{c.font=`${weight} ${s}px Rub
 async function schedImage(){
   const cells=curCells(),notes=curNotes(),ds=days().slice().sort((a,b)=>a-b),ev=+S.cfg.ev||1;
   const E=d=>{const c=cells[d]||[];if(c.some(x=>x.o==='e330'))return '15:30';if(c.some(x=>x.o==='e430'))return '16:30';return null};
-  const rows=[{lbl:'בוקר',hrs:'07:00–14:30',get:d=>isWork(d)?[(cells[d]||[]).find(x=>x.o==='m7')]:null},
+  const rows=[...(bakeOn()?[{lbl:'אפייה',hrs:'06:30–14:30',get:d=>isWork(d)?[(cells[d]||[]).find(x=>x.o==='a630')]:null}]:[]),{lbl:'בוקר',hrs:'07:00–14:30',get:d=>isWork(d)?[(cells[d]||[]).find(x=>x.o==='m7')]:null},
     {lbl:'בוקר',hrs:'08:30–'+(ds.map(E).filter(Boolean).every((v,i,a)=>v===a[0])&&ds.map(E).some(Boolean)?ds.map(E).find(Boolean):'15:30/16:30'),get:d=>isWork(d)?[(cells[d]||[]).find(x=>x.o==='m830')]:null,sub:(x,d)=>E(d)?'עד '+E(d):''}];
   if(S.cfg.m10&&ds.some(d=>(cells[d]||[]).some(x=>x.o==='m10')))rows.push({lbl:'בוקר',hrs:'10:00–14:30',get:d=>isWork(d)?[(cells[d]||[]).find(x=>x.o==='m10')]:null});
   for(let i=0;i<ev;i++)rows.push({lbl:'ערב',hrs:'15:30/16:30–22:00',get:d=>isWork(d)?[(cells[d]||[]).filter(x=>OPTS[x.o]&&OPTS[x.o].s==='e')[i]]:null,sub:x=>'מ'+OPTS[x.o].a});
@@ -598,9 +602,9 @@ const imgPreview=()=>S.imgUrl&&S.imgWk===S.wk?`<div class="card" style="margin:0
 function saveCfg(p){const n={...S.cfg,...p};S.cfg=n;render();return run(()=>sb.from('settings').update({data:n,updated_at:new Date().toISOString()}).eq('id',1))}
 function cloneCells(){return JSON.parse(JSON.stringify((S.sched&&S.sched.cells)||{}))}
 function pubCells(){const c=cloneCells();Object.values(c).forEach(l=>l.forEach(x=>x.n=nameOf(x.e)));return c}
-function waText(){const ds=days();let t=`*סידור עבודה ${BR} ${dDate(S.wk,ds[0])}–${dDate(S.wk,ds[ds.length-1])}*\n`;
+function waText(){const ds=days();let t=`*סידור עבודה ${BR} ${dDate(S.wk,ds[0])} עד ${dDate(S.wk,ds[ds.length-1])}*\n`;
   ds.forEach(d=>{const c=cellsOf(d),m=c.filter(x=>OPTS[x.o]&&OPTS[x.o].s==='m').sort((a,b)=>OPTS[a.o].a.localeCompare(OPTS[b.o].a)),e=c.filter(x=>OPTS[x.o]&&OPTS[x.o].s==='e');
-    const xs=c.filter(x=>x.o==='mss');t+=`\n*${DAYS[d]} ${dDate(S.wk,d)}*\n`+(isWork(d)?`בוקר: ${m.map(x=>nameOf(x.e)+' '+tLabel(x.o,d)).join(', ')||'—'}\nערב: ${e.map(x=>nameOf(x.e)+' '+tLabel(x.o,d)).join(', ')||'—'}\n`:'')+(d===6&&msOn()?`מוצ״ש (צאת שבת–22:30): ${xs.map(x=>nameOf(x.e)).join(', ')||'—'}\n`:'')});return t}
+    const xs=c.filter(x=>x.o==='mss'),ap=c.filter(x=>x.o==='a630');t+=`\n*${DAYS[d]} ${dDate(S.wk,d)}*\n`+(isWork(d)&&bakeOn()?`אפייה: ${ap.map(x=>nameOf(x.e)+' 06:30–14:30').join(', ')||'—'}\n`:'')+(isWork(d)?`בוקר: ${m.map(x=>nameOf(x.e)+' '+tLabel(x.o,d)).join(', ')||'—'}\nערב: ${e.map(x=>nameOf(x.e)+' '+tLabel(x.o,d)).join(', ')||'—'}\n`:'')+(d===6&&msOn()?`מוצ״ש (צאת שבת–22:30): ${xs.map(x=>nameOf(x.e)).join(', ')||'—'}\n`:'')});return t}
 
 /* ---------- export ---------- */
 async function loadX(){if(window.XLSX)return window.XLSX;await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)});return window.XLSX}
@@ -707,9 +711,9 @@ document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-ac
   case 'backup':backup();return;
   case 'savePhone':await saveCfg({mgrPhone:(S.form.mgrPhone??'').trim()});S.ok='נשמר';break;
   case 'tg':{const t=S.tg[ds.e]=S.tg[ds.e]||{};t[ds.s]=Math.max(0,(t[ds.s]||0)+ +ds.n);break}
-  case 'tgAll':{let k=0;people().forEach(e=>{const p=(S.subs[e.id]&&S.subs[e.id].picks)||{};const c=s=>days().filter(d=>hasS(p,d,s)).length;S.tg[e.id]={m:c('m'),e:c('e'),x:c('x')};k+=c('m')+c('e')+c('x')});if(!k)S.msg='אין עדיין הגשות לשבוע הזה, אז אין מה למלא.';else S.ok='מולא לפי כל מה שהעובדים הגישו';break}
+  case 'tgAll':{let k=0;people().forEach(e=>{const p=(S.subs[e.id]&&S.subs[e.id].picks)||{};const c=s=>days().filter(d=>hasS(p,d,s)).length;S.tg[e.id]={a:c('a'),m:c('m'),e:c('e'),x:c('x')};k+=c('a')+c('m')+c('e')+c('x')});if(!k)S.msg='אין עדיין הגשות לשבוע הזה, אז אין מה למלא.';else S.ok='מולא לפי כל מה שהעובדים הגישו';break}
   case 'tgZero':S.tg={};S.ok='הכמויות אופסו';break;
-  case 'auto':{if(!Object.values(S.tg).some(t=>(+t.m||0)+(+t.e||0)+(+t.x||0)>0)){S.msg='קבע קודם לכל עובד כמה משמרות לתת לו (או לחץ "כל מה שהגישו").';break}const r=auto();S.warn=r.warn;S.tab='sched';saveSched({cells:r.cells,targets:JSON.parse(JSON.stringify(S.tg))});window.scrollTo(0,0);return}
+  case 'auto':{if(!Object.values(S.tg).some(t=>(+t.a||0)+(+t.m||0)+(+t.e||0)+(+t.x||0)>0)){S.msg='קבע קודם לכל עובד כמה משמרות לתת לו (או לחץ "כל מה שהגישו").';break}const r=auto();S.warn=r.warn;S.tab='sched';saveSched({cells:r.cells,targets:JSON.parse(JSON.stringify(S.tg))});window.scrollTo(0,0);return}
   case 'rm':{const cells=cloneCells();cells[ds.d]=(cells[ds.d]||[]).filter(x=>x.e!==ds.e);saveSched({cells});return}
   case 'pub':if(ds.v==='1'){const c=pubCells(),wk=S.wk;
       if(await run(()=>sb.from('published_schedules').upsert({week:wk,cells:c,notes:(S.sched&&S.sched.notes)||{},published_at:new Date().toISOString()})))await saveSched({published:true},'פורסם. העובדים רואים את הסידור.')}
@@ -720,6 +724,7 @@ document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-ac
   case 'ev':saveCfg({ev:Math.min(6,Math.max(1,(+S.cfg.ev||1)+ +ds.n))});return;
   case 'm10':saveCfg({m10:!S.cfg.m10});return;
   case 'msT':saveCfg({ms:!msOn()});return;
+  case 'bakeT':saveCfg({bake:!bakeOn()});return;
   case 'msN':saveCfg({msNeed:Math.min(6,Math.max(1,(+S.cfg.msNeed||1)+ +ds.n))});return;
   }}finally{busy.delete(a)}
   render();
