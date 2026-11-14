@@ -419,8 +419,6 @@ function board(edit,meId){
 }
 function flags(x,d){const k=addDays(S.wk,d),f=[];const st=S.staff.find(s=>s.id===x.e);
   if(onLeave(x.e,k))f.push('בחופש מאושר');if(st&&!active(st))f.push('חשבון מושבת');
-  if((x.o==='m7'||x.o==='m830'||x.o==='a630')&&cellsOf(d-1).some(y=>y.e===x.e&&OPTS[y.o]&&OPTS[y.o].s==='e'))f.push('סגר אתמול בערב');
-  if(OPTS[x.o]&&OPTS[x.o].s==='e'&&cellsOf(+d+1).some(y=>y.e===x.e&&(y.o==='m7'||y.o==='m830'||y.o==='a630')))f.push('פותח מחר בבוקר');
   return f.length?` <span class="flag">(${f.join(', ')})</span>`:''}
 function issues(){const out=[];days().forEach(d=>cellsOf(d).forEach(x=>{const k=addDays(S.wk,d),st=S.staff.find(s=>s.id===x.e);
   if(onLeave(x.e,k))out.push(`${nameOf(x.e)} משובץ ביום ${DAYS[d]} אבל יש לו חופש מאושר`);
@@ -523,7 +521,7 @@ function auto(){
   const P=id=>S.subs[id].picks||{};
   const load=(d,s)=>cells[d].filter(x=>OPTS[x.o].s===s).length;
   const ev2=(id,d)=>(cells[d]||[]).some(x=>x.e===id&&OPTS[x.o].s==='e'),mo2=(id,d)=>(cells[d]||[]).some(x=>x.e===id&&(x.o==='m7'||x.o==='m830'||x.o==='a630'));
-  const pick=(id,d,s)=>{const c=cells[d];if(c.some(x=>x.e===id))return null;if(onLeave(id,addDays(S.wk,d)))return null;if(s==='e'&&mo2(id,d+1))return null;const os=pk(P(id),d).filter(o=>OPTS[o].s===s);if(s==='e')return load(d,'e')<ev&&os.length?os[0]:null;if(s==='x')return load(d,'x')<(+S.cfg.msNeed||1)&&os.length?os[0]:null;if(!isWork(d))return null;return os.find(o=>!c.some(x=>x.o===o)&&!((o==='m7'||o==='m830'||o==='a630')&&ev2(id,d-1)))||null};
+  const pick=(id,d,s)=>{const c=cells[d];if(c.some(x=>x.e===id))return null;if(onLeave(id,addDays(S.wk,d)))return null;const os=pk(P(id),d).filter(o=>OPTS[o].s===s);if(s==='e')return load(d,'e')<ev&&os.length?os[0]:null;if(s==='x')return load(d,'x')<(+S.cfg.msNeed||1)&&os.length?os[0]:null;if(!isWork(d))return null;return os.find(o=>!c.some(x=>x.o===o))||null};
   const room=(id,s)=>ds.filter(d=>pick(id,d,s)).length-need[id][s];
   for(let go=true;go;){go=false;
     const order=[];ids.forEach(id=>TY.forEach(s=>{if(need[id][s]>0)order.push([id,s])}));
@@ -532,7 +530,7 @@ function auto(){
       const cand=ds.filter(d=>pick(id,d,s));if(!cand.length)continue;
       cand.sort((a,b)=>load(a,s)-load(b,s)||a-b);
       const d=cand[0];cells[d].push({e:id,o:pick(id,d,s)});need[id][s]--;go=true}}
-  ids.forEach(id=>TY.forEach(s=>{if(need[id][s]>0)warn.push(`${nameOf(id)}: חסרות ${need[id][s]} משמרות ${sName(s)}. הימים שהגיש תפוסים, בחופש, או צמודים למשמרת ערב/בוקר.`)}));
+  ids.forEach(id=>TY.forEach(s=>{if(need[id][s]>0)warn.push(`${nameOf(id)}: חסרות ${need[id][s]} משמרות ${sName(s)}. הימים שהגיש כבר תפוסים או שהוא בחופש.`)}));
   return {cells,warn};
 }
 function saveSched(patch,okMsg){const base=S.sched||{cells:{},targets:{},published:false};const n={...base,...patch};S.sched=n;S.schedAll[S.wk]=n;render();return run(()=>sb.from('schedules').upsert({week:S.wk,cells:n.cells||{},targets:n.targets||{},notes:n.notes||{},published:!!n.published,updated_at:new Date().toISOString()}),okMsg)}
