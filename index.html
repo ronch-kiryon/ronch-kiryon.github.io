@@ -419,6 +419,8 @@ function board(edit,meId){
 }
 function flags(x,d){const k=addDays(S.wk,d),f=[];const st=S.staff.find(s=>s.id===x.e);
   if(onLeave(x.e,k))f.push('בחופש מאושר');if(st&&!active(st))f.push('חשבון מושבת');
+  if((x.o==='m7'||x.o==='m830'||x.o==='a630')&&cellsOf(d-1).some(y=>y.e===x.e&&OPTS[y.o]&&OPTS[y.o].s==='e'))f.push('סגר אתמול בערב');
+  if(OPTS[x.o]&&OPTS[x.o].s==='e'&&cellsOf(+d+1).some(y=>y.e===x.e&&(y.o==='m7'||y.o==='m830'||y.o==='a630')))f.push('פותח מחר בבוקר');
   return f.length?` <span class="flag">(${f.join(', ')})</span>`:''}
 function issues(){const out=[];days().forEach(d=>cellsOf(d).forEach(x=>{const k=addDays(S.wk,d),st=S.staff.find(s=>s.id===x.e);
   if(onLeave(x.e,k))out.push(`${nameOf(x.e)} משובץ ביום ${DAYS[d]} אבל יש לו חופש מאושר`);
