@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>סידור עבודה רונצ׳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+
+<meta name="theme-color" content="#3d1c0e">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700&family=Assistant:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: warm, practical shop tool — used standing at the counter on a phone.
+   IDEA: the shift board pinned by the bakery ovens: one card per day, morning above evening.
+   PICTURE: the week's day cards themselves, large hanging times, names beside them.
+   COLOUR and TYPE: Rönch brown band, white ground, logo yellow for morning, dusk blue for evening; Rubik + Assistant.
+   LAYOUT: one column on phones, cards in a wrapping grid on wider screens; actions stick to the bottom. */
+:root{color-scheme:light dark;--bg:light-dark(#ffffff,#18110c);--card:light-dark(#fbf7f1,#231912);--ink:light-dark(#2b1d14,#f3e9dd);--mute:light-dark(#75604f,#b8a593);--line:light-dark(#eadfd1,#3a2b20);--crust:light-dark(#3d1c0e,#2a140a);--wheat:#f8d650;--wheatS:light-dark(#fcf1c4,#463a13);--dusk:light-dark(#35517a,#a9c3ea);--duskS:light-dark(#e2eaf5,#1f2e45);--bad:light-dark(#b3412e,#ff8e7a);--badS:light-dark(#fdeae6,#3d1d17);--good:light-dark(#2f7d4f,#7fd3a1);--goodS:light-dark(#e3f4ea,#173226)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Assistant,system-ui,sans-serif;overflow-x:clip}
+h1,h2,h3{font-family:Rubik,Assistant,sans-serif;line-height:1.1;margin:0;text-wrap:balance}
+h2{font-size:24px;margin-bottom:12px}h3{font-size:19px;margin:18px 0 8px}
+.logo{background:#fff;display:flex;justify-content:center;padding:6px 16px;border-bottom:4px solid var(--wheat)}.logo img{height:clamp(64px,13vw,104px);width:auto;display:block}
+.top{background:var(--crust);color:#f7ead8;padding:16px max(5vw,16px) 14px}
+.top .row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
+.top h1{font-size:clamp(22px,4.5vw,30px)}
+.top small{color:#d9c2a6;font-size:15px}
+.wk{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap}
+.wk b{font:500 19px Rubik,sans-serif;white-space:nowrap;padding:0 6px}
+.wk .lk{font-size:14px;padding:3px 10px;border-radius:999px;background:#ffffff22;white-space:nowrap}
+.top button{background:#ffffff1a;color:#fff;border-color:#ffffff33}
+.top button.on{background:var(--wheat);color:#2b1d14;border-color:var(--wheat)}
+.band{padding:clamp(18px,3vw,36px) max(5vw,16px);max-width:1240px;margin:0 auto}
+.narrow{max-width:520px}
+button,select,input,textarea{font:inherit;font-size:16px;color:inherit}
+button{min-height:44px;padding:8px 14px;border-radius:12px;border:1px solid var(--line);background:var(--card);cursor:pointer}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{outline:3px solid var(--wheat);outline-offset:2px}
+.pri{background:var(--crust);color:#fff;border-color:var(--crust);font-weight:700;padding-inline:22px}
+:root[data-theme=dark] .pri{background:var(--wheat);color:#2b1d14;border-color:var(--wheat)}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]) .pri{background:var(--wheat);color:#2b1d14;border-color:var(--wheat)}}
+.ghost{background:none;border-color:transparent;color:var(--mute);text-decoration:underline}
+.danger{color:var(--bad)}
+.wa{display:inline-flex;align-items:center;min-height:44px;padding:8px 14px;border-radius:12px;background:#1f8f4e;color:#fff;font-weight:700;text-decoration:none}
+label{display:block;margin:0 0 14px;font-weight:600}
+input,select,textarea{display:block;width:100%;margin-top:6px;min-height:46px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--bg)}
+textarea{min-height:76px}
+.mute{color:var(--mute)}.err{color:var(--bad);font-weight:600}.ok{color:var(--good);font-weight:600}
+.tabs{display:flex;gap:6px;margin-bottom:18px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}.tabs::-webkit-scrollbar{display:none}.tabs button{white-space:nowrap;flex:none}
+.flag{color:var(--bad);font-weight:700;font-size:13px}
+.tabs button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tabs .dot{display:inline-block;min-width:22px;padding:0 6px;margin-inline-start:6px;border-radius:999px;background:var(--bad);color:#fff;font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:14px}
+.day,.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
+.card{display:grid;gap:10px;align-content:start}
+.dh{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;gap:8px}
+.dh b{font:700 20px Rubik,sans-serif}.dh span{color:var(--mute)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border-radius:999px;font-size:15px;padding:8px 12px;white-space:nowrap}
+.chip.on{font-weight:700}
+.chip.on.m{background:var(--wheat);border-color:var(--wheat);color:#2b1d14}
+.chip.on.e{background:var(--dusk);border-color:var(--dusk);color:var(--bg)}
+.chip.on.n{background:var(--line)}
+.chip.on.x{background:var(--crust);border-color:var(--crust);color:#fff}
+.sec.x,.tag.x{background:var(--crust);color:#fff}
+.sec{font-size:13px;font-weight:700;margin:10px 0 4px;padding:2px 10px;border-radius:999px;display:inline-block}
+.sec.m{background:var(--wheatS)}.sec.e{background:var(--duskS)}
+.slot{display:grid;grid-template-columns:96px minmax(0,1fr) auto;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line)}
+.slot:last-child{border-bottom:0}
+.slot .t{font:500 15px Rubik,sans-serif;white-space:nowrap;direction:ltr;text-align:right}
+.slot .nm{font-weight:700}
+.slot.me .nm{background:var(--wheat);color:#2b1d14;border-radius:8px;padding:0 8px;justify-self:start}
+.slot select{margin:0;min-height:40px;padding:6px 8px;font-size:15px}
+.miss{color:var(--bad);font-weight:700;font-size:14px}
+.x{min-height:36px;padding:2px 10px;font-size:14px}
+.hd{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline}
+.hd b{font:700 19px Rubik,sans-serif}
+.tag{font-size:14px;padding:3px 9px;border-radius:999px;white-space:nowrap;background:var(--line)}
+.tag.m{background:var(--wheatS)}.tag.e{background:var(--duskS)}
+.st{font-size:14px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap}
+.st.pending{background:var(--wheatS)}.st.approved{background:var(--goodS);color:var(--good)}.st.rejected{background:var(--badS);color:var(--bad)}.st.cancelled{background:var(--line)}
+.steps{display:flex;gap:14px;flex-wrap:wrap}
+.step{display:flex;align-items:center;gap:6px;font-weight:600}
+.step button{width:44px;padding:0;font-size:20px}
+.step output{min-width:28px;text-align:center;font:700 20px Rubik,sans-serif}
+.bar{position:sticky;bottom:0;background:var(--bg);border-top:1px solid var(--line);padding:12px max(5vw,16px);display:flex;gap:10px;flex-wrap:wrap;align-items:center;z-index:2}
+.note{background:var(--wheatS);border-radius:12px;padding:10px 14px;margin-bottom:14px}
+.warn{background:var(--badS);border-radius:12px;padding:10px 14px;margin-bottom:14px}
+.good{background:var(--goodS);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+.warn ul{margin:4px 0 0;padding-inline-start:20px}
+.list{display:grid}
+.list .it{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--line)}
+.sum{display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0 16px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,160px),1fr));gap:10px;margin-bottom:22px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px;text-align:start}
+.tile b{display:block;font:700 clamp(30px,6vw,40px)/1 Rubik,sans-serif;margin-bottom:6px}
+.tile.hot{background:var(--wheatS);border-color:var(--wheat)}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin:8px 0 14px}
+.cal .dn{text-align:center;font-size:13px;color:var(--mute);font-weight:700}
+.cal button{min-height:44px;padding:0;border-radius:10px;font-weight:600}
+.cal button.sel{background:var(--crust);color:#fff;border-color:var(--crust)}
+.cal button.had{box-shadow:inset 0 -4px 0 var(--wheat)}
+.calh{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.diff{font-size:15px}.diff del{color:var(--bad)}.diff ins{color:var(--good);text-decoration:none;font-weight:700}
+details summary{cursor:pointer;font-weight:600;min-height:32px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:start;vertical-align:top}
+th{font-weight:700;color:var(--mute);font-size:14px}
+td.n{white-space:nowrap}
+@media(max-width:600px){.slot{grid-template-columns:86px minmax(0,1fr) auto}.chip{font-size:14px}table{font-size:14px}.stack thead{display:none}.stack tr{display:grid;padding-block:8px;border-bottom:1px solid var(--line)}.stack td{display:flex;justify-content:space-between;gap:12px;border:0;padding:3px 0}.stack td::before{content:attr(data-l);color:var(--mute);font-weight:600}}
+@media(prefers-reduced-motion:no-preference){.day,.card{animation:up .25s ease-out both}@keyframes up{from{opacity:0;transform:translateY(6px)}}}
+</style>
+</head>
+<body>
+<div id="app"><div class="band"><p class="mute">טוען…</p></div></div>
+<script>
+{
+const LOGO='data:image/jpeg;base64,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PyV0iVIiTt2RLtS1pe9MalgjttQwU76YExSMBbvEnj5qNLHbbjrLUjXSMfKZ5d+omDeDR1XTNZa6CucHVtFT1DgMAyxB2B8V6pLfRUTS2jpIIGk5xFGG/kquNsvHIoqkitvpY6KjgpYRiOFgYzyAwtB27EDR0WT/AOcj/JykYDHJfCsoqWuYI6yCOdgO8GyNDhnyKs1aKJ07Ib/Z+x6ZeeIP0cePmVNY4q1pLZQ0T3Oo6SCAuHtdlGG5+Su0SpEyep2UwmOKqikqRvtg1PdNORW82qpELpnO3yWg5A81GR2o6r6XNv8AwNXRdZb6Ou3fTKSCo3fd7WMOx81bfwesv9UUH+GZ+iq02+TSM4pbo54qtpOqquF0Drphrxg7jWgnwWxbHNJ1NRePXFbA+OnpxmIvGN9x68VMzbBZ2uDm2qhBHIinYMfgsg1jWjDQAO4BRp9kvIqpIgvb7UON8t1MXfRtpS8A95cQfyC3zYzj+AdHg5PaSfvFbdV2ugrXtfWUVNUOaMAyxNcQPiF9aSkp6OPsqWGOGPJO7G3dGfJSo72Vc7jpNX2iaOh1TbAGYZWQZdC8DieHJQfpLUdw0Xfy15LIu07OphdyIB5rp4jPNWEtktM0hkmtlHI9xyXPgaST54Rx8iM6VMj3bLqCI6PpYaWVpFwe053sHcAz+PJYfYLaQZrhdngndAijyO/iSPyUuVFottQ1jaigpZWsGGB8TTujuGRwX2paOlo4+zpIIoWfZjaGj8EreyddRpEL6+2h6gseq6+goqqNlPC5oY10YJ4tBWh6l1ZddS9gbtNHIYN7s91oGM8/yXTk1ltdRK6We20ksjzlz5IWuJ+JC8fwfsx/9JoP8Mz9FDi2THIl4NF2Cf0Wq+IOaxxwP9UKTVbUdDSULXMo6eKBrjktjaGgnyCuVZKkZyduwqYVUUkFMIqogKYTCqiAphFVEAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREAREQBERAEREB//9k=';
+const CFG=window.RONCH_CONFIG||{};
+const BR='RONCH';
+const DAYS=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+const DS=['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
+const MONTHS=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+const OPTS={m7:{s:'m',a:'07:00',b:'14:30'},m830:{s:'m',a:'08:30',b:null},m10:{s:'m',a:'10:00',b:'14:30'},e330:{s:'e',a:'15:30',b:'22:00'},e430:{s:'e',a:'16:30',b:'22:00'},mss:{s:'x',a:'צאת שבת',b:'22:30'}};
+const REASONS={abroad:'חופשה בחו״ל',family:'אירוע משפחתי',errands:'סידורים אישיים',other:'סיבה אישית אחרת'};
+const STN={pending:'ממתין לאישור',approved:'אושר',rejected:'נדחה',cancelled:'בוטל'};
+const DEF={days:[0,1,2,3,4,5],ev:2,m10:true,ms:true,msNeed:2,mgrPhone:''};
+const LEAD=14;
+const S={uid:null,owner:false,mode:'emp',cfg:DEF,session:null,auth:'login',recovery:false,
+  me:undefined,acct:{},avail:{},leave:{},pub:null,pubAll:{},schedAll:{},
+  staff:[],accts:{},availAll:{},leaveAll:{},sched:null,seen:0,
+  wk:null,tab:'dash',etab:'av',tg:{},tgWk:null,pick:null,dirty:false,form:{},msg:'',ok:'',loading:true,confirm:null,warn:[],
+  lf:'pending',cal:null,calSel:[],sent:null,open:{},edit:null,exc:false};
+let sb=null,lockKey='',reloadT=null,loadSeq=0;
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function parse(k){const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d)}
+function addDays(k,n){const d=parse(k);d.setDate(d.getDate()+n);return ymd(d)}
+function sundayOf(k){const d=parse(k);d.setDate(d.getDate()-d.getDay());return ymd(d)}
+const fmtD=k=>{const d=parse(k);return d.getDate()+'.'+(d.getMonth()+1)+'.'+d.getFullYear()};
+const short=k=>{const d=parse(k);return d.getDate()+'.'+(d.getMonth()+1)};
+function dDate(k,i){return short(addDays(k,i))}
+/* Israel wall-clock time, DST-aware via the IANA zone */
+function ilParts(t){const p={};new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jerusalem',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(t==null?new Date():new Date(t)).forEach(x=>p[x.type]=x.value);return {date:`${p.year}-${p.month}-${p.day}`,time:`${p.hour}:${p.minute}`}}
+const ilToday=()=>ilParts().date;
+const deadline=wk=>addDays(wk,-4);
+function isLockedWk(wk,now){const n=now||ilParts();return (n.date+' '+n.time)>=(deadline(wk)+' 13:00')}
+function openWeek(now){const n=now||ilParts();let wk=addDays(sundayOf(n.date),7);while(isLockedWk(wk,n))wk=addDays(wk,7);return wk}
+const upcoming=()=>addDays(sundayOf(ilToday()),7);
+function fmtT(t){if(!t)return '';const p=ilParts(t),d=parse(p.date);return `יום ${DS[d.getDay()]} ${short(p.date)} ${p.time}`}
+function left(wk){const n=ilParts();const a=new Date(n.date+'T'+n.time+':00Z'),b=new Date(deadline(wk)+'T13:00:00Z');let m=Math.max(0,Math.round((b-a)/60000));const d=Math.floor(m/1440),h=Math.floor(m%1440/60);return d?`${d} ימים ו-${h} שעות`:`${h} שעות ו-${m%60} דקות`}
+const isWork=d=>S.cfg.days.map(Number).includes(+d);
+const msOn=()=>S.cfg.ms!==false;
+const days=()=>{const a=S.cfg.days.map(Number);if(msOn()&&!a.includes(6))a.push(6);return a.sort((x,y)=>x-y)};
+const TYPES=()=>['m','e',...(msOn()?['x']:[])];
+const arr=v=>Array.isArray(v)?v.filter(o=>OPTS[o]):(OPTS[v]?[v]:[]);
+const pk=(p,d)=>arr((p||{})[d]);
+const hasS=(p,d,s)=>pk(p,d).some(o=>OPTS[o].s===s);
+const sName=s=>s==='m'?'בוקר':s==='x'?'מוצ״ש':'ערב';
+const pickTxt=os=>os.map(o=>sName(OPTS[o].s)+' '+tLabel(o)).join(', ');
+function ranges(ds){const s=[...ds].sort(),out=[];s.forEach(k=>{const l=out[out.length-1];if(l&&addDays(l[1],1)===k)l[1]=k;else out.push([k,k])});return out.map(([a,b])=>a===b?fmtD(a):fmtD(a)+' עד '+fmtD(b)).join(', ')}
+function phoneIntl(p){let d=String(p||'').replace(/\D/g,'');if(!d)return '';if(d.startsWith('0'))d='972'+d.slice(1);return d}
+const waHref=(p,t)=>'https://wa.me/'+phoneIntl(p)+'?text='+encodeURIComponent(t);
+const waBtn=(p,t,l)=>phoneIntl(p)?`<a class="wa" href="${waHref(p,t)}" target="_blank" rel="noopener">${esc(l)}</a>`:'';
+const LS={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}};
+function errMsg(e){const m=String((e&&(e.message||e.error_description))||e||'');
+  if(/row-level security|not allowed|permission denied|violates/i.test(m))return 'אין הרשאה לפעולה הזאת. ייתכן שההגשה כבר נסגרה או שהחשבון הושבת.';
+  if(/Invalid login credentials/i.test(m))return 'המייל או הסיסמה לא נכונים.';
+  if(/already registered|already been registered/i.test(m))return 'המייל הזה כבר רשום. אפשר להיכנס או לאפס סיסמה.';
+  if(/Password should be at least/i.test(m))return 'הסיסמה צריכה להיות לפחות 6 תווים.';
+  if(/Email not confirmed/i.test(m))return 'צריך לאשר את המייל לפני הכניסה. בדוק את תיבת הדואר.';
+  if(/rate limit|too many/i.test(m))return 'יותר מדי ניסיונות. נסה שוב בעוד כמה דקות.';
+  if(/fetch|network|Failed to/i.test(m))return 'אין חיבור לשרת. בדוק את האינטרנט ונסה שוב.';
+  return 'הפעולה נכשלה: '+m}
+async function run(fn,okMsg){try{const r=await fn();if(r&&r.error)throw r.error;if(okMsg)S.ok=okMsg;await loadAll();return true}catch(e){S.msg=errMsg(e);render();return false}}
+/* ---------- data access ---------- */
+const active=st=>(S.accts[st.id]||{}).active!==false;
+function people(){const sub=subsMap(S.wk);
+  return S.staff.filter(s=>active(s)&&(s.role!=='manager'||sub[s.id])).map(s=>({id:s.id,name:s.name,phone:s.phone})).sort((x,y)=>String(x.name).localeCompare(String(y.name),'he'))}
+function subsMap(wk){const m={};S.staff.filter(active).forEach(s=>{const x=((S.availAll[s.id]||{}).weeks||{})[wk];if(x)m[s.id]=x});return m}
+const onLeave=(uid,k)=>allReqs().some(r=>r.uid===uid&&r.st==='approved'&&r.dates.includes(k));
+function nameOf(id){const s=S.staff.find(x=>x.id===id);if(s)return s.name;
+  const c=Object.values((S.pub&&S.pub.cells)||{}).flat().find(x=>x.e===id);return (c&&c.n)||'עובד'}
+function allReqs(){const out=[];Object.entries(S.leaveAll).forEach(([uid,l])=>Object.entries(l.reqs||{}).forEach(([id,r])=>{const d=((S.accts[uid]||{}).leave||{})[id];out.push({uid,id,...r,st:d?d.st:(r.cancelled?'cancelled':'pending'),mnote:d&&d.note,dt:d&&d.t})}));return out.sort((a,b)=>b.t-a.t)}
+function myReqs(){return Object.entries(S.leave.reqs||{}).map(([id,r])=>{const d=(S.acct.leave||{})[id];return {id,...r,st:d?d.st:(r.cancelled?'cancelled':'pending'),mnote:d&&d.note}}).sort((a,b)=>b.t-a.t)}
+function events(){const ev=[];S.staff.forEach(s=>Object.entries((S.availAll[s.id]||{}).weeks||{}).forEach(([wk,x])=>(x.hist||[]).forEach((h,i)=>ev.push({t:h.t,uid:s.id,k:i?'upd':'sub',wk}))));
+  allReqs().forEach(r=>ev.push({t:r.t,uid:r.uid,k:'leave',r}));return ev.sort((a,b)=>b.t-a.t)}
+
+/* ---------- start ---------- */
+const ms=t=>t?Date.parse(t):0;
+async function fetchAll(table,order){const out=[];for(let i=0;;i+=1000){let q=sb.from(table).select('*').range(i,i+999);if(order)q=q.order(order);const {data,error}=await q;if(error)throw error;out.push(...data);if(data.length<1000)break}return out}
+async function loadAll(){
+  if(!S.session){render();return}
+  const seq=++loadSeq;
+  try{
+    const [pr,st,av,hi,ul,lv,ps]=await Promise.all([fetchAll('profiles'),sb.from('settings').select('data').eq('id',1).maybeSingle(),fetchAll('availability'),fetchAll('availability_history','id'),fetchAll('unlocks'),fetchAll('leave_requests'),fetchAll('published_schedules')]);
+    if(st.error)throw st.error;
+    const me=pr.find(p=>p.id===S.uid);
+    let sc=[],mst=null;
+    if(me&&me.role==='manager'&&me.active){sc=await fetchAll('schedules');const r=await sb.from('manager_state').select('seen').eq('user_id',S.uid).maybeSingle();mst=r.data}
+    if(seq!==loadSeq)return;
+    S.cfg={...DEF,...((st.data&&st.data.data)||{})};
+    S.me=me||null;
+    const wasOwner=S.owner;S.owner=!!(me&&me.role==='manager'&&me.active);
+    if(S.owner&&!wasOwner&&S.mode==='emp'&&!S.modeSet){S.mode='mgr';S.wk=upcoming()}
+    if(!S.owner)S.mode='emp';
+    S.staff=pr.map(p=>({id:p.id,name:p.name,phone:p.phone,role:p.role,t:ms(p.created_at)})).sort((a,b)=>String(a.name).localeCompare(String(b.name),'he'));
+    const A={};pr.forEach(p=>A[p.id]={active:p.active,role:p.role,unlock:{},leave:{}});
+    ul.forEach(u=>{(A[u.user_id]=A[u.user_id]||{unlock:{},leave:{}}).unlock[u.week]=true});
+    lv.forEach(r=>{if(r.status==='approved'||r.status==='rejected')(A[r.user_id]=A[r.user_id]||{unlock:{},leave:{}}).leave[r.id]={st:r.status,note:r.manager_note,t:ms(r.decided_at)}});
+    S.accts=A;
+    const H={};hi.forEach(h=>{const k=h.user_id+'|'+h.week;(H[k]=H[k]||[]).push({t:ms(h.created_at),picks:h.picks,note:h.note})});
+    const V={};av.forEach(a=>{const hs=H[a.user_id+'|'+a.week]||[];((V[a.user_id]=V[a.user_id]||{weeks:{}}).weeks)[a.week]={picks:a.picks,note:a.note,t:ms(a.updated_at),first:hs[0]||{picks:a.picks,note:a.note,t:ms(a.created_at)},hist:hs.length?hs:[{t:ms(a.created_at),picks:a.picks,note:a.note}]}});
+    S.availAll=V;
+    const L={};lv.forEach(r=>{((L[r.user_id]=L[r.user_id]||{reqs:{}}).reqs)[r.id]={dates:r.dates,reason:r.reason,detail:r.detail,t:ms(r.created_at),cancelled:r.status==='cancelled',by:r.by_manager?'mgr':''}});
+    S.leaveAll=L;
+    S.avail=V[S.uid]||{};S.leave=L[S.uid]||{};S.acct=A[S.uid]||{};
+    S.pubAll={};ps.forEach(p=>S.pubAll[p.week]={cells:p.cells,t:ms(p.published_at)});
+    S.schedAll={};sc.forEach(x=>S.schedAll[x.week]={cells:x.cells,targets:x.targets,published:x.published,t:ms(x.updated_at)});
+    S.seen=mst?ms(mst.seen):0;
+    syncWeek();S.loading=false;
+  }catch(e){if(seq!==loadSeq)return;S.loading=false;S.msg=errMsg(e)}
+  render()}
+function syncWeek(){S.pub=S.pubAll[S.wk]||null;S.sched=S.schedAll[S.wk]||null;if(S.tgWk!==S.wk){S.tg=JSON.parse(JSON.stringify((S.sched&&S.sched.targets)||{}));S.tgWk=S.wk}}
+function reloadSoon(){clearTimeout(reloadT);reloadT=setTimeout(loadAll,400)}
+let chan=null;
+function live(on){if(chan){sb.removeChannel(chan);chan=null}if(on)chan=sb.channel('ronch').on('postgres_changes',{event:'*',schema:'public'},reloadSoon).subscribe()}
+(async()=>{
+  S.wk=openWeek();
+  if(!window.supabase||!CFG.url||!CFG.key){S.loading=false;S.msg='noconfig';render();return}
+  sb=window.supabase.createClient(CFG.url,CFG.key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+  sb.auth.onAuthStateChange((ev,session)=>{
+    if(ev==='PASSWORD_RECOVERY')S.recovery=true;
+    const had=S.session&&S.session.user.id,now=session&&session.user.id;
+    S.session=session;S.uid=now||null;
+    if(had!==now){S.me=undefined;S.owner=false;S.mode='emp';S.modeSet=false;S.wk=openWeek();S.tgWk=null;live(!!now);if(now){S.loading=true;render();setTimeout(loadAll,0)}else{S.loading=false;render()}}
+    else render()});
+  const {data}=await sb.auth.getSession();
+  if(!data.session){S.loading=false;render()}
+  setInterval(()=>{const k=openWeek()+isLockedWk(S.wk);if(k!==lockKey){lockKey=k;render()}},30000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.session)reloadSoon()});
+})();
+function subWeek(){S.pick=null;S.dirty=false;S.form.note=undefined;S.warn=[];S.sent=null;syncWeek()}
+
+/* ---------- render ---------- */
+function render(){
+  const a=document.activeElement,aid=a&&a.id,pos=a&&a.selectionStart;
+  let h=`<div class="logo"><img src="${LOGO}" alt="Rönch מאפיית רונצ׳"></div>`;
+  if(S.loading)h+='<div class="band"><p class="mute">טוען…</p></div>';
+  else if(S.msg==='noconfig')h+='<div class="band narrow"><h2>המערכת עוד לא מחוברת</h2><p>חסרים פרטי החיבור לשרת (config.js). אם אתה המנהל, השלם את ההתקנה.</p></div>';
+  else if(S.recovery)h+=recoveryForm();
+  else if(!S.session)h+=authScreen();
+  else{
+    if(S.mode==='mgr')S.subs=subsMap(S.wk);
+    h+=header();
+    if(S.msg)h+=`<div class="band" style="padding-bottom:0"><p class="err">${esc(S.msg)}</p></div>`;
+    h+=S.mode==='mgr'?mgr():emp()}
+  $('#app').innerHTML=h;
+  if(aid){const n=document.getElementById(aid);if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}}}
+}
+function header(){
+  const showWk=S.mode==='mgr'?['subs','sched','hist'].includes(S.tab):(S.me&&S.etab==='av');
+  const ds=days(),rng=ds.length?dDate(S.wk,ds[0])+'–'+dDate(S.wk,ds[ds.length-1]):dDate(S.wk,0);
+  const lk=isLockedWk(S.wk);
+  return `<header class="top"><div class="row"><div><h1>סידור עבודה · סניף הקריון</h1><small>${S.mode==='mgr'?'מסך מנהל':'אזור אישי'}</small></div>
+  ${S.owner?`<div class="chips"><button class="${S.mode==='mgr'?'on':''}" data-act="mode" data-v="mgr">מנהל</button><button class="${S.mode==='emp'?'on':''}" data-act="mode" data-v="emp">עובד</button></div>`:''}</div>
+  ${showWk?`<div class="wk"><button data-act="wk" data-n="-1" aria-label="שבוע קודם">→</button><b>שבוע ${rng}</b><button data-act="wk" data-n="1" aria-label="שבוע הבא">←</button>
+  <span class="lk">${lk?'ההגשה נסגרה':'פתוח להגשה עד רביעי '+short(deadline(S.wk))+' 13:00'}</span>
+  ${S.wk!==(S.mode==='mgr'?upcoming():openWeek())?`<button data-act="wk" data-n="0">${S.mode==='mgr'?'השבוע הקרוב':'השבוע להגשה'}</button>`:''}</div>`:''}</header>`;
+}
+
+/* ---------- employee ---------- */
+function emp(){
+  if(S.me===undefined)return '<div class="band"><p class="mute">טוען…</p></div>';
+  if(!S.me)return '<div class="band narrow"><p class="mute">יוצר את החשבון שלך…</p><button data-act="reload">רענון</button> <button class="ghost" data-act="logout">יציאה</button></div>';
+  if(S.acct.active===false)return '<div class="band narrow"><h2>החשבון הושבת</h2><p>החשבון שלך במערכת הושבת על ידי מנהל הסניף. לפרטים פנה למנהל.</p><button data-act="logout">יציאה</button></div>';
+  let h=`<div class="band"><div class="hd" style="margin-bottom:12px"><h2 style="margin:0">שלום ${esc(S.me.name)}</h2><span class="chips"><button class="ghost" data-act="editMe">עריכת פרטים</button><button class="ghost" data-act="logout">יציאה</button></span></div>`;
+  if(S.edit==='me')h+=meForm();
+  h+=`<div class="tabs"><button class="${S.etab==='av'?'on':''}" data-act="etab" data-v="av">זמינות שבועית</button><button class="${S.etab==='lv'?'on':''}" data-act="etab" data-v="lv">בקשת חופש</button></div>`;
+  return h+(S.etab==='lv'?empLeave():empAvail());
+}
+function meForm(){const f=S.form;return `<div class="card" style="margin-bottom:16px"><label>שם מלא<input id="meName" value="${esc(f.meName??S.me.name)}"></label><label>טלפון לוואטסאפ<input id="mePhone" inputmode="tel" value="${esc(f.mePhone??(S.me.phone||''))}"></label><div class="chips"><button class="pri" data-act="saveMe">שמירה</button><button data-act="editMe">ביטול</button></div></div>`}
+function authScreen(){const f=S.form,m=S.auth;
+  const tabs=`<div class="tabs"><button class="${m==='login'?'on':''}" data-act="authm" data-v="login">כניסה</button><button class="${m==='signup'?'on':''}" data-act="authm" data-v="signup">עובד חדש? הרשמה</button></div>`;
+  if(m==='sent')return `<div class="band narrow"><h2>כמעט סיימנו</h2><p>${esc(S.ok||'שלחנו לך מייל. לחץ על הקישור שבו וחזור לכאן.')}</p><button data-act="authm" data-v="login">חזרה לכניסה</button></div>`;
+  if(m==='forgot')return `<div class="band narrow"><h2>איפוס סיסמה</h2><p class="mute">נשלח לך מייל עם קישור לבחירת סיסמה חדשה.</p><label>מייל<input id="auEmail" type="email" autocomplete="email" value="${esc(f.auEmail||'')}"></label><button class="pri" data-act="forgot">שליחת קישור</button> <button class="ghost" data-act="authm" data-v="login">חזרה</button></div>`;
+  return `<div class="band narrow"><h2>${m==='signup'?'הרשמה לעובדי רונצ׳ קריון':'כניסה לאזור האישי'}</h2>${tabs}
+   ${m==='signup'?`<label>שם מלא<input id="rgName" autocomplete="name" value="${esc(f.rgName||'')}"></label><label>טלפון לוואטסאפ<input id="rgPhone" inputmode="tel" autocomplete="tel" placeholder="050-0000000" value="${esc(f.rgPhone||'')}"></label>`:''}
+   <label>מייל<input id="auEmail" type="email" autocomplete="email" value="${esc(f.auEmail||'')}"></label>
+   <label>סיסמה${m==='signup'?' (לפחות 6 תווים)':''}<input id="auPass" type="password" autocomplete="${m==='signup'?'new-password':'current-password'}" value="${esc(f.auPass||'')}"></label>
+   <button class="pri" data-act="${m==='signup'?'signup':'login'}">${m==='signup'?'הרשמה':'כניסה'}</button>
+   ${m==='login'?' <button class="ghost" data-act="authm" data-v="forgot">שכחתי סיסמה</button>':''}
+   <p class="mute" style="margin-top:20px">שומרים את הקישור הזה בטלפון, ונכנסים ממנו כל שבוע.</p></div>`}
+function recoveryForm(){return `<div class="band narrow"><h2>בחירת סיסמה חדשה</h2><label>סיסמה חדשה<input id="newPass" type="password" autocomplete="new-password" value="${esc(S.form.newPass||'')}"></label><button class="pri" data-act="setPass">שמירה</button></div>`}
+function getPicks(){if(S.pick)return S.pick;const x=(S.avail.weeks||{})[S.wk];return (x&&x.picks)||{}}
+function canEditWk(wk){return !isLockedWk(wk)||!!((S.acct.unlock||{})[wk])}
+function empAvail(){
+  const x=(S.avail.weeks||{})[S.wk],picks=getPicks(),ds=days(),ed=canEditWk(S.wk);
+  let h='';
+  if(S.pub){const mine=ds.filter(d=>((S.pub.cells||{})[d]||[]).some(c=>c.e===S.uid));
+    h+=`<h3 style="margin-top:0">הסידור הסופי</h3><p class="mute" style="margin:0 0 12px">${mine.length?'יש לך '+mine.length+' משמרות השבוע, מסומנות בצהוב.':'לא שובצת השבוע.'}</p>`+board(false,S.uid)+'<hr style="border:0;border-top:1px solid var(--line);margin:28px 0">';}
+  if(S.sent&&S.sent.wk===S.wk){const msg=availMsg(S.sent);
+    h+=`<div class="good"><b>${S.sent.kind==='sub'?'הזמינות נשלחה ונשמרה.':'העדכון נשמר.'}</b> ${S.cfg.mgrPhone?'אפשר לשלוח למנהל הודעה מוכנה:':''}<div style="margin-top:8px">${waBtn(S.cfg.mgrPhone,msg,'פתיחת וואטסאפ עם ההודעה למנהל')}</div></div>`}
+  h+=`<h3 style="margin-top:0">הזמינות שלך לשבוע</h3>`;
+  if(!ed)h+=`<div class="note">ההגשה לשבוע הזה נסגרה ביום רביעי ${short(deadline(S.wk))} ב-13:00. רק מנהל הסניף יכול לפתוח אותה מחדש.</div>`;
+  else{h+=`<p class="mute" style="margin:0 0 12px">סמן כל משמרת שמתאימה לך. אפשר כמה ביום אחד, גם בוקר וגם ערב. אפשר לעדכן כמה פעמים שרוצים עד רביעי ${short(deadline(S.wk))} ב-13:00${isLockedWk(S.wk)?' (המנהל פתח לך עריכה)':' (נותרו '+left(S.wk)+')'}.</p>`}
+  if(x)h+=`<p class="mute" style="margin:-4px 0 12px">הוגש לראשונה: ${fmtT(x.first&&x.first.t)} · עדכון אחרון: ${fmtT(x.t)}</p>`;
+  const prevW=(S.avail.weeks||{})[addDays(S.wk,-7)];
+  if(ed&&prevW&&Object.keys(prevW.picks||{}).length)h+=`<p style="margin:0 0 12px"><button data-act="copyPrev">העתקת הזמינות מהשבוע הקודם</button></p>`;
+  const myLv=myReqs().filter(r=>r.st==='pending'||r.st==='approved');
+  const chOf=d=>['',...(isWork(d)?['m7','m830',...(S.cfg.m10?['m10']:[]),'e330','e430']:[]),...(d===6&&msOn()?['mss']:[])];
+  h+='<div class="grid">'+ds.map(d=>{const lr=myLv.find(r=>r.dates.includes(addDays(S.wk,d)));return `<div class="day"><div class="dh"><b>${DAYS[d]}</b><span>${dDate(S.wk,d)}</span></div>${lr?`<div class="note" style="padding:6px 10px;margin-bottom:8px;font-size:14px">יש לך בקשת חופש ליום הזה (${STN[lr.st]})</div>`:''}<div class="chips">`+
+    chOf(d).map(o=>{const on=o?pk(picks,d).includes(o):!pk(picks,d).length,s=o?OPTS[o].s:'n';return `<button class="chip ${s} ${on?'on':''}" data-act="pick" data-d="${d}" data-o="${o}" aria-pressed="${on}" ${ed?'':'disabled'}>${o?sName(s)+' <span dir="ltr">'+tLabel(o)+'</span>':'לא זמין'}</button>`}).join('')+'</div></div>'}).join('')+'</div>';
+  const note=S.form.note!==undefined?S.form.note:(x&&x.note)||'';
+  h+=`<label style="margin-top:16px">הערה למנהל (לא חובה)<textarea id="note" ${ed?'':'disabled'} placeholder="למשל: ביום שלישי אני יכול רק עד 14:00">${esc(note)}</textarea></label></div>`;
+  const cnt=s=>ds.filter(d=>hasS(picks,d,s)).length;
+  if(ed)h+=`<div class="bar"><button class="pri" data-act="submit">${x?'עדכון הזמינות':'שליחת זמינות'}</button><span>${cnt('m')} ימי בוקר · ${cnt('e')} ימי ערב${msOn()?' · '+(cnt('x')?'מוצ״ש ✓':'בלי מוצ״ש'):''}</span>
+    ${S.dirty?'<span class="mute">יש שינויים שלא נשלחו</span>':x?'<span class="ok">ההגשה שמורה ✓</span>':''}</div>`;
+  return h;
+}
+function changeTxt(prev,now){const ch=days().filter(d=>JSON.stringify(pk(prev,d))!==JSON.stringify(pk(now,d)));
+  return ch.map(d=>`יום ${DAYS[d]}: ${pickTxt(pk(prev,d))||'לא זמין'} ← ${pickTxt(pk(now,d))||'לא זמין'}`)}
+function availMsg(s){const name=S.me?S.me.name:'',p=ilParts(s.t),end=fmtD(addDays(s.wk,6));
+  if(s.kind==='sub')return `📩 הגשת זמינות חדשה – ${BR}\n\nעובד: ${name}.\n\nהגיש זמינות לשבוע:\n${fmtD(s.wk)} עד ${end}.\n\nשעת הגשה: ${p.time}.`;
+  const c=changeTxt(s.prev,s.now);
+  return `🔄 עדכון זמינות – ${BR}\n\nעובד: ${name}.\n\nעדכן את הזמינות שלו לשבוע ${fmtD(s.wk)}–${end}.\n\nמועד עדכון: יום ${DAYS[parse(p.date).getDay()]}, ${p.time}.\n\nשינוי שבוצע:\n${c.join('\n')||'עדכון הערה'}`}
+/* leave */
+function calendar(min,had){
+  if(!S.cal){const t=parse(min||ilToday());S.cal=ymd(new Date(t.getFullYear(),t.getMonth(),1))}
+  const f=parse(S.cal),y=f.getFullYear(),m=f.getMonth(),n=new Date(y,m+1,0).getDate();
+  let h=`<div class="calh"><button data-act="calm" data-n="-1" aria-label="חודש קודם">→</button><b>${MONTHS[m]} ${y}</b><button data-act="calm" data-n="1" aria-label="חודש הבא">←</button></div><div class="cal">${DS.map(x=>`<span class="dn">${x}</span>`).join('')}`;
+  for(let i=0;i<f.getDay();i++)h+='<span></span>';
+  for(let d=1;d<=n;d++){const k=ymd(new Date(y,m,d)),dis=min&&k<min,sel=S.calSel.includes(k);
+    h+=`<button class="${sel?'sel':''} ${had&&had.has(k)?'had':''}" data-act="cald" data-k="${k}" ${dis?'disabled':''} aria-pressed="${sel}" aria-label="${fmtD(k)}">${d}</button>`}
+  return h+'</div>'}
+function leaveForm(min,had,who){const f=S.form;
+  return `${calendar(min,had)}<p style="margin:0 0 12px">${S.calSel.length?`<b>נבחרו ${S.calSel.length} ימים:</b> ${ranges(S.calSel)} <button class="ghost" data-act="calclr">ניקוי</button>`:'<span class="mute">לחץ על התאריכים בלוח. אפשר ימים רצופים או תאריכים נפרדים.</span>'}</p>
+  ${who||''}<label>סיבת הבקשה<select id="lvReason"><option value="">בחר סיבה…</option>${Object.entries(REASONS).map(([k,v])=>`<option value="${k}" ${f.lvReason===k?'selected':''}>${v}</option>`).join('')}</select></label>
+  <label>פירוט ${f.lvReason==='other'?'(חובה)':'(לא חובה)'}<textarea id="lvDetail">${esc(f.lvDetail||'')}</textarea></label>`}
+function empLeave(){
+  const min=addDays(ilToday(),LEAD),mine=myReqs(),had=new Set(mine.filter(r=>r.st==='pending'||r.st==='approved').flatMap(r=>r.dates));
+  let h='';
+  if(S.ok==='LEAVE_SENT'){const r=S.sentLeave;h+=`<div class="good"><b>בקשת החופש שלך נשלחה בהצלחה והיא נמצאת בטיפול המנהל. ממתינים לאישור.</b>${S.cfg.mgrPhone?`<div style="margin-top:8px">${waBtn(S.cfg.mgrPhone,leaveMsg(r,S.me.name),'פתיחת וואטסאפ עם ההודעה למנהל')}</div>`:''}</div>`}
+  h+=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));align-items:start"><div class="card"><h3 style="margin:0">בקשה חדשה</h3><p class="mute" style="margin:0">לפי כללי הסניף, בקשת חופש מוגשת לפחות ${LEAD} ימים מראש (מ-${fmtD(min)} והלאה). למקרה חריג פנה ישירות למנהל.</p>${leaveForm(min,had)}<button class="pri" data-act="sendLeave">שליחת בקשת חופש</button></div>`;
+  h+=`<div class="card"><h3 style="margin:0">הבקשות שלי</h3>${mine.length?mine.map(r=>`<div class="list"><div class="it"><div><b>${ranges(r.dates)}</b><div class="mute">${esc(REASONS[r.reason]||'')}${r.detail?' · '+esc(r.detail):''}</div><div class="mute" style="font-size:14px">הוגש ${fmtT(r.t)}</div>${r.mnote?`<div class="note" style="margin:6px 0 0">הערת המנהל: ${esc(r.mnote)}</div>`:''}</div><div style="display:grid;gap:6px;justify-items:end"><span class="st ${r.st}">${STN[r.st]}</span>${r.st==='pending'?`<button class="x" data-act="cancelLeave" data-id="${r.id}">ביטול</button>`:''}</div></div></div>`).join(''):'<p class="mute">עוד לא הגשת בקשות.</p>'}</div></div></div>`;
+  return h}
+function leaveMsg(r,name){return `📅 בקשת חופש חדשה – ${BR}\n\nעובד: ${name}.\n\nתאריכי החופש המבוקשים:\n${ranges(r.dates)}.\n\nסיבת הבקשה: ${REASONS[r.reason]}${r.detail?' – '+r.detail:''}.\n\nסטטוס: ממתין לאישור מנהל.\n\nהעובד ממתין לתשובת המנהל.`}
+
+/* ---------- manager ---------- */
+function mgr(){
+  const t=S.tab,newEv=events().filter(e=>e.t>S.seen).length,pend=allReqs().filter(r=>r.st==='pending').length;
+  const tabs=[['dash','לוח בקרה',newEv],['subs','הגשות ושיבוץ'],['sched','הסידור'],['leave','חופשות',pend],['staff','עובדים'],['hist','היסטוריה ודוחות'],['set','הגדרות']];
+  let h=`<div class="band"><div class="tabs">${tabs.map(([k,l,n])=>`<button class="${t===k?'on':''}" data-act="tab" data-v="${k}">${l}${n?`<span class="dot">${n}</span>`:''}</button>`).join('')}</div>`;
+  if(S.ok&&S.ok!=='LEAVE_SENT'&&!['subs','sched'].includes(t))h+=`<p class="ok">${esc(S.ok)}</p>`;
+  return h+({dash,subs:subsTab,sched:schedTab,leave:leaveTab,staff:staffTab,hist:histTab,set:setTab}[t]||dash)();
+}
+function dash(){
+  const ow=openWeek(),st=S.staff.filter(s=>active(s)&&s.role!=='manager'),done=st.filter(s=>((S.availAll[s.id]||{}).weeks||{})[ow]),not=st.filter(s=>!done.includes(s));
+  const R=allReqs(),c=k=>R.filter(r=>r.st===k).length,ev=events(),nw=ev.filter(e=>e.t>S.seen);
+  let h=`<h2>מחזור ההגשה הפתוח: שבוע ${fmtD(ow)}–${fmtD(addDays(ow,6))}</h2><p class="mute" style="margin-top:-6px">ההגשה נסגרת אוטומטית ביום רביעי ${fmtD(deadline(ow))} ב-13:00 שעון ישראל (נותרו ${left(ow)}).</p>`;
+  h+=`<div class="tiles"><div class="tile"><b>${done.length}</b>הגישו זמינות</div><div class="tile ${not.length?'hot':''}"><b>${not.length}</b>עוד לא הגישו</div>
+   <button class="tile ${c('pending')?'hot':''}" data-act="lf" data-v="pending"><b>${c('pending')}</b>חופשות ממתינות</button><button class="tile" data-act="lf" data-v="approved"><b>${c('approved')}</b>חופשות שאושרו</button><button class="tile" data-act="lf" data-v="rejected"><b>${c('rejected')}</b>חופשות שנדחו</button></div>`;
+  h+=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));align-items:start">`;
+  h+=`<div class="card"><div class="hd"><h3 style="margin:0">התראות חדשות (${nw.length})</h3>${nw.length?'<button class="x" data-act="seen">סימון כנקרא</button>':''}</div>${ev.slice(0,12).map(e=>evRow(e,e.t>S.seen)).join('')||'<p class="mute">אין עדיין פעילות.</p>'}</div>`;
+  const rem=`שלום, עדיין לא הגשת את הזמינות שלך לשבוע הבא. יש להשלים את ההגשה עד יום רביעי בשעה 13:00.`;
+  h+=`<div class="card"><h3 style="margin:0">לא הגישו לשבוע ${short(ow)}</h3><p class="mute" style="margin:0">תזכורת לא נשלחת לבד. הכפתור פותח וואטסאפ עם הודעה מוכנה, ואתה לוחץ שלח.</p>${not.map(s=>`<div class="list"><div class="it"><b>${esc(s.name)}</b>${waBtn(s.phone,rem,'תזכורת בוואטסאפ')||'<span class="mute">אין טלפון</span>'}</div></div>`).join('')||'<p class="ok">כולם הגישו.</p>'}</div></div>`;
+  const up=upcoming(),dirty=unpubDirty(up);if(dirty)h+=`<div class="warn" style="margin-top:16px"><b>יש שינויים בסידור של שבוע ${short(up)} שהעובדים עוד לא רואים.</b> <button class="x" data-act="goSched" data-v="${up}">לסידור</button></div>`;
+  if(!st.length)h+=`<div class="note" style="margin-top:16px">עוד אין עובדים רשומים. ${addHelp()}</div>`;
+  return h+'</div>'}
+function evRow(e,nw){const n=esc(nameOf(e.uid));const txt=e.k==='leave'?`${n} ביקש חופש: ${ranges(e.r.dates)}`:e.k==='sub'?`${n} הגיש זמינות לשבוע ${short(e.wk)}`:`${n} עדכן זמינות לשבוע ${short(e.wk)}`;
+  return `<div class="list"><div class="it"><span>${nw?'<b>חדש</b> · ':''}${txt}</span><span class="mute" style="font-size:14px">${fmtT(e.t)}</span></div></div>`}
+const addHelp=()=>`כדי להוסיף עובד: שלח לו את הקישור לאתר (${esc(location.origin+location.pathname)}). הוא לוחץ "עובד חדש? הרשמה", ממלא שם, טלפון, מייל וסיסמה, ומופיע כאן אוטומטית.`;
+function subsTab(){
+  const ds=days(),P=people(),n=P.filter(e=>S.subs[e.id]).length;
+  let h=`<p class="mute" style="margin-top:0">${n} מתוך ${P.length} עובדים הגישו לשבוע הזה${isLockedWk(S.wk)?' (ההגשה נסגרה)':''}. קבע לכל עובד כמה משמרות לתת לו, ואז לחץ "שבץ אוטומטית".</p><div class="grid">`;
+  h+=P.map(e=>{const sub=S.subs[e.id],p=(sub&&sub.picks)||{};
+    const has=s=>ds.filter(d=>hasS(p,d,s)).length;
+    const tg=S.tg[e.id]||{};
+    const tags=ds.flatMap(d=>pk(p,d).map(o=>`<span class="tag ${OPTS[o].s}">${DAYS[d]} · <span dir="ltr">${tLabel(o)}</span></span>`)).join(' ');
+    const st=s=>`<div class="step"><span>${sName(s)}</span><button data-act="tg" data-e="${e.id}" data-s="${s}" data-n="-1" aria-label="פחות">−</button><output>${tg[s]||0}</output><button data-act="tg" data-e="${e.id}" data-s="${s}" data-n="1" aria-label="יותר" ${(tg[s]||0)>=has(s)?'disabled':''}>+</button><span class="mute">מתוך ${has(s)}</span></div>`;
+    return `<div class="card"><div class="hd"><b>${esc(e.name)}</b><span class="mute">${sub?'הגיש '+has('m')+' ימי בוקר, '+has('e')+' ימי ערב'+(has('x')?', מוצ״ש':''):'לא הגיש'}</span></div>
+      
+      ${sub?`<div class="chips">${tags||'<span class="mute">לא סימן ימים</span>'}</div>${sub.note?`<div class="note" style="margin:0">${esc(sub.note)}</div>`:''}<div class="steps">${TYPES().map(st).join('')}</div>`:''}</div>`}).join('');
+  h+='</div></div>';
+  h+=`<div class="bar"><button class="pri" data-act="auto">שבץ אוטומטית</button><button data-act="tgAll">כל מה שהגישו</button><button data-act="tgZero">איפוס הכמויות</button>${S.ok?`<span class="ok">${esc(S.ok)}</span>`:''}</div>`;
+  return h}
+function curCells(){return (S.mode==='mgr'?(S.sched&&S.sched.cells):(S.pub&&S.pub.cells))||{}}
+const cellsOf=d=>curCells()[d]||[];
+function end830(d){const c=cellsOf(d);if(c.some(x=>x.o==='e330'))return '15:30';if(c.some(x=>x.o==='e430'))return '16:30';return null}
+function tLabel(o,d){const x=OPTS[o];if(!x)return '';if(o==='mss')return 'צאת שבת–22:30';const b=o==='m830'?(d==null?'15:30/16:30':(end830(d)||'15:30/16:30')):x.b;return x.a+'–'+b}
+function board(edit,meId){
+  const ds=days(),ev=+S.cfg.ev||1,ms=['m7','m830',...(S.cfg.m10?['m10']:[])];
+  return '<div class="grid">'+ds.map(d=>{const c=cellsOf(d);
+    const row=(o,x,opt)=>`<div class="slot ${x&&x.e===meId?'me':''}"><span class="t">${tLabel(o,d)}</span>${x?`<span class="nm">${esc(x.n||nameOf(x.e))}${edit?flags(x,d):''}</span>${edit?`<button class="x" data-act="rm" data-d="${d}" data-e="${x.e}" aria-label="הסר">הסר</button>`:'<span></span>'}`:
+      edit?`<select data-add="${d}" data-o="${o}" aria-label="הוספת עובד">${opt}</select><span></span>`:`<span class="mute">—</span><span></span>`}</div>`;
+    let h=`<div class="day"><div class="dh"><b>${DAYS[d]}</b><span>${dDate(S.wk,d)}</span></div>`,miss=0;
+    const multi=(s,need,lbl)=>{const l=c.filter(y=>OPTS[y.o]&&OPTS[y.o].s===s);h+=`<span class="sec ${s}">${lbl}</span>`;l.forEach(x=>{h+=row(x.o,x)});
+      if(edit&&l.length<need)h+=row(s,null,addOpts(d,s));if(!edit&&!l.length)h+='<div class="slot"><span class="t">—</span><span class="mute">אין</span><span></span></div>';miss+=Math.max(0,need-l.length)};
+    if(isWork(d)){h+='<span class="sec m">בוקר</span>';
+      ms.forEach(o=>{const x=c.find(y=>y.o===o);if(!x&&!edit&&o==='m10')return;h+=row(o,x,edit?addOpts(d,o):'')});
+      miss+=(c.find(y=>y.o==='m7')?0:1)+(c.find(y=>y.o==='m830')?0:1);h+='<br>';multi('e',ev,'ערב')}
+    if(d===6&&msOn()){if(isWork(d))h+='<br>';multi('x',+S.cfg.msNeed||1,'מוצאי שבת')}
+    if(edit&&miss)h+=`<div class="miss">חסרים ${miss} עובדים ביום הזה</div>`;
+    const off=edit?leaveOn(addDays(S.wk,d)):[];if(off.length)h+=`<div class="mute" style="font-size:14px;margin-top:6px">בחופש מאושר: ${off.map(esc).join(', ')}</div>`;
+    return h+'</div>'}).join('')+'</div>';
+}
+function flags(x,d){const k=addDays(S.wk,d),f=[];const st=S.staff.find(s=>s.id===x.e);
+  if(onLeave(x.e,k))f.push('בחופש מאושר');if(st&&!active(st))f.push('חשבון מושבת');
+  if((x.o==='m7'||x.o==='m830')&&cellsOf(d-1).some(y=>y.e===x.e&&OPTS[y.o]&&OPTS[y.o].s==='e'))f.push('סגר אתמול בערב');
+  if(OPTS[x.o]&&OPTS[x.o].s==='e'&&cellsOf(+d+1).some(y=>y.e===x.e&&(y.o==='m7'||y.o==='m830')))f.push('פותח מחר בבוקר');
+  return f.length?` <span class="flag">(${f.join(', ')})</span>`:''}
+function issues(){const out=[];days().forEach(d=>cellsOf(d).forEach(x=>{const k=addDays(S.wk,d),st=S.staff.find(s=>s.id===x.e);
+  if(onLeave(x.e,k))out.push(`${nameOf(x.e)} משובץ ביום ${DAYS[d]} אבל יש לו חופש מאושר`);
+  if(st&&!active(st))out.push(`${nameOf(x.e)} משובץ ביום ${DAYS[d]} אבל החשבון שלו מושבת`)}));return out}
+function stripN(c){const o={};Object.entries(c||{}).forEach(([d,l])=>o[d]=(l||[]).map(x=>({e:x.e,o:x.o})));return JSON.stringify(o)}
+function unpubDirty(wk){const s=S.schedAll[wk],p=S.pubAll[wk];return !!(s&&s.published&&p&&stripN(s.cells)!==stripN(p.cells))}
+function leaveOn(k){return allReqs().filter(r=>r.st==='approved'&&r.dates.includes(k)).map(r=>nameOf(r.uid))}
+function addOpts(d,o){
+  const c=cellsOf(d),busy=new Set(c.map(x=>x.e));
+  if(o==='x')o='mss';const isE=o==='e',P=e=>pk(S.subs[e.id]&&S.subs[e.id].picks,d),fits=e=>isE?P(e).some(x=>OPTS[x].s==='e'):P(e).includes(o);
+  const k=addDays(S.wk,d),free=people().filter(e=>!busy.has(e.id)&&!onLeave(e.id,k)),a=free.filter(fits),b=free.filter(e=>!fits(e));
+  const one=(e,off)=>{if(!isE)return `<option value="${e.id}|${o}">${esc(e.name)}${off?' (לא הגיש)':''}</option>`;
+    if(!off)return P(e).filter(x=>OPTS[x].s==='e').map(x=>`<option value="${e.id}|${x}">${esc(e.name)} · ${OPTS[x].a}</option>`).join('');
+    return ['e330','e430'].map(x=>`<option value="${e.id}|${x}">${esc(e.name)} · ${OPTS[x].a} (לא הגיש)</option>`).join('')};
+  return `<option value="">${isE?'+ הוספה לערב':o==='mss'?'+ הוספה למוצ״ש':'+ הוספה'}</option>${a.length?`<optgroup label="הגישו לזה">${a.map(e=>one(e,0)).join('')}</optgroup>`:''}${b.length?`<optgroup label="אחרים">${b.map(e=>one(e,1)).join('')}</optgroup>`:''}`;
+}
+function schedTab(){
+  const pub=S.sched&&S.sched.published,ds=days();
+  let h='';
+  if(S.warn.length)h+=`<div class="warn"><b>לא הצלחתי לשבץ הכול:</b><ul>${S.warn.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`;
+  const iss=issues();if(iss.length)h+=`<div class="warn"><b>כדאי לבדוק:</b><ul>${iss.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`;
+  if(unpubDirty(S.wk))h+=`<div class="warn"><b>יש שינויים שהעובדים עוד לא רואים.</b> לחץ "עדכון הפרסום" למטה.</div>`;
+  h+=`<p class="mute" style="margin-top:0">${pub?'<span class="ok">הסידור פורסם והעובדים רואים אותו.</span> שינויים יגיעו לעובדים רק אחרי "עדכון הפרסום".':'טיוטה. העובדים לא רואים אותה עד שתפרסם.'} אפשר להסיר ולהוסיף עובדים ידנית.</p>`;
+  const cnt={};ds.forEach(d=>cellsOf(d).forEach(x=>{const s=OPTS[x.o]&&OPTS[x.o].s;if(!s)return;cnt[x.e]=cnt[x.e]||{m:0,e:0,x:0};cnt[x.e][s]++}));
+  const ids=Object.keys(cnt);
+  if(ids.length)h+='<div class="sum">'+ids.map(id=>`<span><b>${esc(nameOf(id))}</b> ${cnt[id].m} בוקר, ${cnt[id].e} ערב${cnt[id].x?', מוצ״ש':''}</span>`).join('')+'</div>';
+  h+=board(true)+'</div>';
+  h+=`<div class="bar"><button class="pri" data-act="pub" data-v="1">${pub?'עדכון הפרסום':'פרסום לעובדים'}</button>${pub?'<button data-act="pub" data-v="0">ביטול פרסום</button>':''}<button data-act="copy">העתקה לוואטסאפ</button>
+    ${S.confirm==='clear'?'<span class="err">למחוק את כל השיבוצים של השבוע?</span><button class="danger" data-act="clear" data-v="yes">כן, לנקות</button><button data-act="clear" data-v="no">ביטול</button>':'<button class="danger" data-act="clear">ניקוי הסידור</button>'}${S.ok?`<span class="ok">${esc(S.ok)}</span>`:''}</div>`;
+  return h;
+}
+function overlaps(r){const ds=new Set(r.dates);return allReqs().filter(o=>o.uid!==r.uid&&(o.st==='pending'||o.st==='approved')&&o.dates.some(k=>ds.has(k)))}
+function leaveTab(){
+  const R=allReqs(),f=S.lf,L=f==='all'?R:R.filter(r=>r.st===f);
+  let h=`<div class="chips" style="margin-bottom:14px">${[['pending','ממתינות'],['approved','אושרו'],['rejected','נדחו'],['cancelled','בוטלו'],['all','הכול']].map(([k,l])=>`<button class="chip ${f===k?'on n':''}" data-act="lf" data-v="${k}">${l} (${k==='all'?R.length:R.filter(r=>r.st===k).length})</button>`).join('')}<button class="chip" data-act="exc">${S.exc?'סגירת הוספה חריגה':'+ הוספת חופש חריג לעובד'}</button></div>`;
+  if(S.exc){const who=`<label>עובד<select id="excWho"><option value="">בחר עובד…</option>${S.staff.filter(active).map(s=>`<option value="${s.id}" ${S.form.excWho===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></label>`;
+    h+=`<div class="card" style="margin-bottom:16px;max-width:520px"><h3 style="margin:0">חופש חריג</h3><p class="mute" style="margin:0">למקרים שבהם צריך לאשר גם בתוך ${LEAD} הימים הקרובים. הבקשה נכנסת כממתינה ואתה מאשר אותה כרגיל.</p>${leaveForm(null,null,who)}<button class="pri" data-act="sendExc">הוספת הבקשה</button></div>`}
+  h+='<div class="grid">'+(L.map(r=>{const ov=r.st==='pending'||r.st==='approved'?overlaps(r):[],s=S.staff.find(x=>x.id===r.uid)||{},nm=s.name||'עובד';
+    const dm=r.st==='approved'?`בקשת החופש שלך אושרה על ידי מנהל הסניף.`:`בקשת החופש שלך נדחתה על ידי מנהל הסניף.`;
+    const full=`${dm}\nתאריכים: ${ranges(r.dates)}${r.mnote?'\nהערת המנהל: '+r.mnote:''}\n– ${BR} סניף הקריון`;
+    return `<div class="card"><div class="hd"><b>${esc(nm)}</b><span class="st ${r.st}">${STN[r.st]}</span></div>
+     <div><b>${ranges(r.dates)}</b> <span class="mute">(${r.dates.length} ימים)</span></div>
+     <div>${esc(REASONS[r.reason]||'')}${r.detail?' · '+esc(r.detail):''}</div>
+     <div class="mute" style="font-size:14px">הוגש ${fmtT(r.t)}${r.by==='mgr'?' · הוזן על ידי המנהל':''}${r.dt?' · טופל '+fmtT(r.dt):''}</div>
+     ${ov.length?`<div class="warn" style="margin:0"><b>כדאי לבדוק כוח אדם:</b> גם ${ov.map(o=>esc(nameOf(o.uid))+' ('+STN[o.st]+', '+ranges(o.dates.filter(k=>r.dates.includes(k)))+')').join('; ')} ביקשו חופש באותם תאריכים.</div>`:''}
+     ${r.st==='pending'?`<label style="margin:0">הערה לעובד (לא חובה)<textarea id="ln_${r.uid}_${r.id}">${esc(S.form['ln_'+r.uid+'_'+r.id]||'')}</textarea></label><div class="chips"><button class="pri" data-act="decide" data-u="${r.uid}" data-id="${r.id}" data-v="approved">אישור</button><button class="danger" data-act="decide" data-u="${r.uid}" data-id="${r.id}" data-v="rejected">דחייה</button></div>`:''}
+     ${r.mnote?`<div class="note" style="margin:0">הערתך: ${esc(r.mnote)}</div>`:''}
+     ${r.st==='approved'||r.st==='rejected'?`<div class="chips">${waBtn(s.phone,full,'עדכון לעובד בוואטסאפ')}<button class="x" data-act="decide" data-u="${r.uid}" data-id="${r.id}" data-v="pending">החזרה להמתנה</button></div>`:''}</div>`}).join('')||'<p class="mute">אין בקשות בקטגוריה הזאת.</p>')+'</div></div>';
+  return h}
+function staffTab(){
+  const act=S.staff.filter(active),off=S.staff.filter(s=>!active(s)),lk=isLockedWk(S.wk);
+  let h=`<div class="note">${addHelp()}</div><h2>עובדים פעילים (${act.length})</h2><div class="grid">`;
+  const dup=new Set(S.staff.map(s=>String(s.name).trim()).filter((n,i,a)=>a.indexOf(n)!==i));
+  const card=s=>{const a=S.accts[s.id]||{},ul=(a.unlock||{})[S.wk],wks=Object.keys((S.availAll[s.id]||{}).weeks||{}).length,ed=S.edit===s.id,f=S.form;
+    return `<div class="card"><div class="hd"><b>${esc(s.name)}${s.role==='manager'?' <span class="tag">מנהל</span>':''}${dup.has(String(s.name).trim())?' <span class="flag">שם כפול</span>':''}</b><span class="mute">${esc(s.phone||'אין טלפון')}</span></div>
+    <div class="mute" style="font-size:14px">נרשם ${fmtT(s.t)} · הגיש ב-${wks} שבועות</div>
+    ${ed?`<label>שם<input id="ed_name" value="${esc(f.ed_name??s.name)}"></label><label>טלפון<input id="ed_phone" inputmode="tel" value="${esc(f.ed_phone??(s.phone||''))}"></label><div class="chips"><button class="pri" data-act="saveStaff" data-e="${s.id}">שמירה</button><button data-act="editStaff" data-e="">ביטול</button></div>`:
+    `<div class="chips"><button data-act="editStaff" data-e="${s.id}">עריכה</button>
+    ${active(s)?`<button data-act="unlock" data-e="${s.id}" ${lk?'':'disabled'}>${ul?'נעילה מחדש':'פתיחת עריכה'} לשבוע ${short(S.wk)}</button>`:''}
+    <button data-act="hist" data-e="${s.id}">היסטוריה</button>
+    ${s.id!==S.uid?`<button data-act="role" data-e="${s.id}">${S.confirm==='role_'+s.id?'בטוח? לחץ שוב':s.role==='manager'?'הסרת הרשאת מנהל':'מתן הרשאת מנהל'}</button>`:''}
+    ${s.id===S.uid?'':`<button class="danger" data-act="toggleActive" data-e="${s.id}">`}${s.id===S.uid?'':`${S.confirm==='act_'+s.id?'בטוח? לחץ שוב':active(s)?'השבתה':'הפעלה מחדש'}</button>`}</div>`}</div>`};
+  h+=act.map(card).join('')||'<p class="mute">עוד אין עובדים רשומים.</p>';
+  h+='</div>';
+  if(!lk)h+=`<p class="mute">פתיחת עריכה לעובד זמינה אחרי שההגשה לשבוע ${short(S.wk)} נסגרת. אפשר לבחור שבוע אחר בלשונית "הגשות ושיבוץ".</p>`;
+  if(off.length)h+=`<h2 style="margin-top:26px">חשבונות מושבתים (${off.length})</h2><div class="grid">${off.map(card).join('')}</div>`;
+  return h+'</div>'}
+function histTab(){
+  const st=S.staff;
+  let h=`<div class="chips" style="margin-bottom:16px"><button class="pri" data-act="xlsx">הורדת דוח Excel מלא</button><button data-act="backup">הורדת גיבוי (JSON)</button></div>`;
+  h+=`<h2>זמינות לשבוע ${fmtD(S.wk)}</h2><div class="scroll"><table class="stack"><thead><tr><th>עובד</th><th>סטטוס</th><th>הגשה ראשונה</th><th>עדכון אחרון</th><th>עדכונים</th></tr></thead><tbody>`;
+  h+=st.map(s=>{const x=((S.availAll[s.id]||{}).weeks||{})[S.wk];const op=S.open[s.id];
+    let r=`<tr><td data-l="עובד"><b>${esc(s.name)}</b>${active(s)?'':' <span class="mute">(מושבת)</span>'}</td><td data-l="סטטוס">${x?'<span class="st approved">הגיש</span>':'<span class="st rejected">לא הגיש</span>'}</td><td data-l="הגשה ראשונה" class="n">${x?fmtT(x.first&&x.first.t):'—'}</td><td data-l="עדכון אחרון" class="n">${x?fmtT(x.t):'—'}</td><td data-l="עדכונים">${x?`${Math.max(0,(x.hist||[]).length-1)} <button class="x" data-act="open" data-e="${s.id}">${op?'הסתר':'פרטים'}</button>`:'—'}</td></tr>`;
+    if(x&&op){const c=changeTxt(x.first&&x.first.picks,x.picks);
+      r+=`<tr><td colspan="5"><div class="diff"><b>מה השתנה מאז ההגשה המקורית:</b> ${c.length?c.map(esc).join('<br>'):'אין שינוי במשמרות'}</div>
+      <details style="margin-top:8px"><summary>כל הגרסאות (${(x.hist||[]).length})</summary>${(x.hist||[]).map((v,i)=>`<div style="padding:6px 0;border-bottom:1px dashed var(--line)"><b>${i?'עדכון':'הגשה'} · ${fmtT(v.t)}</b><br>${days().filter(d=>pk(v.picks,d).length).map(d=>DAYS[d]+': '+esc(pickTxt(pk(v.picks,d)))).join(' · ')||'לא סימן ימים'}${v.note?'<br>הערה: '+esc(v.note):''}</div>`).join('')}</details></td></tr>`}
+    return r}).join('')||'<tr><td colspan="5" class="mute">אין עובדים.</td></tr>';
+  h+='</tbody></table></div>';
+  const R=allReqs();
+  h+=`<h2 style="margin-top:28px">כל בקשות החופש (${R.length})</h2><div class="scroll"><table class="stack"><thead><tr><th>עובד</th><th>תאריכים</th><th>סיבה</th><th>הוגש</th><th>סטטוס</th></tr></thead><tbody>${R.map(r=>`<tr><td data-l="עובד">${esc(nameOf(r.uid))}</td><td data-l="תאריכים">${ranges(r.dates)}</td><td data-l="סיבה">${esc(REASONS[r.reason]||'')}</td><td data-l="הוגש" class="n">${fmtT(r.t)}</td><td data-l="סטטוס"><span class="st ${r.st}">${STN[r.st]}</span></td></tr>`).join('')||'<tr><td colspan="5" class="mute">אין בקשות.</td></tr>'}</tbody></table></div>`;
+  return h+'</div>'}
+function setTab(){
+  const c=S.cfg;
+  return `<h2>ימי עבודה</h2><div class="chips" style="margin-bottom:22px">${DAYS.map((n,i)=>`<button class="chip m ${c.days.map(Number).includes(i)?'on':''}" data-act="day" data-d="${i}">${n}</button>`).join('')}</div>
+  <h2>משמרות</h2><div class="steps" style="margin-bottom:10px"><div class="step"><span>עובדים בערב</span><button data-act="ev" data-n="-1">−</button><output>${c.ev}</output><button data-act="ev" data-n="1">+</button></div></div>
+  <p style="margin:0 0 12px"><button class="chip x ${msOn()?'on':''}" data-act="msT">מוצ״ש (צאת שבת–22:30) ${msOn()?'פעיל':'כבוי'}</button></p>
+  ${msOn()?`<div class="steps" style="margin-bottom:12px"><div class="step"><span>עובדים במוצ״ש</span><button data-act="msN" data-n="-1">−</button><output>${+c.msNeed||1}</output><button data-act="msN" data-n="1">+</button></div></div>`:''}
+  <p style="margin:0 0 26px"><button class="chip m ${c.m10?'on':''}" data-act="m10">בוקר 10:00–14:30 ${c.m10?'פעיל':'כבוי'}</button></p>
+  <h2>וואטסאפ של המנהל</h2><div style="max-width:420px"><label>מספר הטלפון שלך (העובדים יקבלו כפתור לשליחת עדכון אליו)<input id="mgrPhone" inputmode="tel" value="${esc(S.form.mgrPhone??c.mgrPhone??'')}" placeholder="050-0000000"></label><button class="pri" data-act="savePhone">שמירה</button></div>
+  <p class="mute" style="margin-top:24px">מחזור שבועי: ההגשה לכל שבוע נסגרת ביום רביעי שלפניו ב-13:00 שעון ישראל, והמחזור הבא נפתח אוטומטית. כל השבועות נשמרים בהיסטוריה.</p></div>`}
+
+/* ---------- auto-assign (unchanged rules) ---------- */
+function auto(){
+  const ds=days(),ev=+S.cfg.ev||1,cells={},warn=[];ds.forEach(d=>cells[d]=[]);
+  const ids=people().map(e=>e.id).filter(id=>S.subs[id]),need={};
+  const TY=TYPES();ids.forEach(id=>{const t=S.tg[id]||{};need[id]={m:+t.m||0,e:+t.e||0,x:TY.includes('x')?+t.x||0:0}});
+  const P=id=>S.subs[id].picks||{};
+  const load=(d,s)=>cells[d].filter(x=>OPTS[x.o].s===s).length;
+  const ev2=(id,d)=>(cells[d]||[]).some(x=>x.e===id&&OPTS[x.o].s==='e'),mo2=(id,d)=>(cells[d]||[]).some(x=>x.e===id&&(x.o==='m7'||x.o==='m830'));
+  const pick=(id,d,s)=>{const c=cells[d];if(c.some(x=>x.e===id))return null;if(onLeave(id,addDays(S.wk,d)))return null;if(s==='e'&&mo2(id,d+1))return null;const os=pk(P(id),d).filter(o=>OPTS[o].s===s);if(s==='e')return load(d,'e')<ev&&os.length?os[0]:null;if(s==='x')return load(d,'x')<(+S.cfg.msNeed||1)&&os.length?os[0]:null;if(!isWork(d))return null;return os.find(o=>!c.some(x=>x.o===o)&&!((o==='m7'||o==='m830')&&ev2(id,d-1)))||null};
+  const room=(id,s)=>ds.filter(d=>pick(id,d,s)).length-need[id][s];
+  for(let go=true;go;){go=false;
+    const order=[];ids.forEach(id=>TY.forEach(s=>{if(need[id][s]>0)order.push([id,s])}));
+    order.sort((a,b)=>room(a[0],a[1])-room(b[0],b[1]));
+    for(const [id,s] of order){if(need[id][s]<=0)continue;
+      const cand=ds.filter(d=>pick(id,d,s));if(!cand.length)continue;
+      cand.sort((a,b)=>load(a,s)-load(b,s)||a-b);
+      const d=cand[0];cells[d].push({e:id,o:pick(id,d,s)});need[id][s]--;go=true}}
+  ids.forEach(id=>TY.forEach(s=>{if(need[id][s]>0)warn.push(`${nameOf(id)}: חסרות ${need[id][s]} משמרות ${sName(s)}. הימים שהגיש תפוסים, בחופש, או צמודים למשמרת ערב/בוקר.`)}));
+  return {cells,warn};
+}
+function saveSched(patch,okMsg){const base=S.sched||{cells:{},targets:{},published:false};const n={...base,...patch};S.sched=n;S.schedAll[S.wk]=n;render();return run(()=>sb.from('schedules').upsert({week:S.wk,cells:n.cells||{},targets:n.targets||{},published:!!n.published,updated_at:new Date().toISOString()}),okMsg)}
+function saveCfg(p){const n={...S.cfg,...p};S.cfg=n;render();return run(()=>sb.from('settings').update({data:n,updated_at:new Date().toISOString()}).eq('id',1))}
+function cloneCells(){return JSON.parse(JSON.stringify((S.sched&&S.sched.cells)||{}))}
+function pubCells(){const c=cloneCells();Object.values(c).forEach(l=>l.forEach(x=>x.n=nameOf(x.e)));return c}
+function waText(){const ds=days();let t=`*סידור עבודה ${BR} ${dDate(S.wk,ds[0])}–${dDate(S.wk,ds[ds.length-1])}*\n`;
+  ds.forEach(d=>{const c=cellsOf(d),m=c.filter(x=>OPTS[x.o]&&OPTS[x.o].s==='m').sort((a,b)=>OPTS[a.o].a.localeCompare(OPTS[b.o].a)),e=c.filter(x=>OPTS[x.o]&&OPTS[x.o].s==='e');
+    const xs=c.filter(x=>x.o==='mss');t+=`\n*${DAYS[d]} ${dDate(S.wk,d)}*\n`+(isWork(d)?`בוקר: ${m.map(x=>nameOf(x.e)+' '+tLabel(x.o,d)).join(', ')||'—'}\nערב: ${e.map(x=>nameOf(x.e)+' '+tLabel(x.o,d)).join(', ')||'—'}\n`:'')+(d===6&&msOn()?`מוצ״ש (צאת שבת–22:30): ${xs.map(x=>nameOf(x.e)).join(', ')||'—'}\n`:'')});return t}
+
+/* ---------- export ---------- */
+async function loadX(){if(window.XLSX)return window.XLSX;await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)});return window.XLSX}
+function reportRows(){
+  const A=[['שבוע','עובד','יום','תאריך','משמרות שסומנו','הערה','הגשה ראשונה','עדכון אחרון']],B=[['שבוע','עובד','הגיש?','הגשה ראשונה','עדכון אחרון','מספר עדכונים']],C=[['עובד','מתאריך','עד תאריך','תאריכים','ימים','סיבה','פירוט','הוגש','סטטוס','הערת מנהל','טופל','הוזן על ידי']],D=[['עובד','שבוע','מועד','סוג','משמרות','הערה','שינוי לעומת הגרסה הקודמת']];
+  const weeks=new Set([openWeek()]);S.staff.forEach(s=>Object.keys((S.availAll[s.id]||{}).weeks||{}).forEach(k=>weeks.add(k)));
+  [...weeks].sort().reverse().forEach(wk=>S.staff.forEach(s=>{const x=((S.availAll[s.id]||{}).weeks||{})[wk];
+    B.push([fmtD(wk),s.name,x?'כן':'לא',x?fmtT(x.first&&x.first.t):'',x?fmtT(x.t):'',x?Math.max(0,(x.hist||[]).length-1):'']);
+    if(!x)return;days().forEach(d=>{const os=pk(x.picks,d);if(os.length)A.push([fmtD(wk),s.name,DAYS[d],fmtD(addDays(wk,d)),pickTxt(os),x.note||'',fmtT(x.first&&x.first.t),fmtT(x.t)])});
+    (x.hist||[]).forEach((v,i)=>{const pv=i?x.hist[i-1].picks:{};D.push([s.name,fmtD(wk),fmtT(v.t),i?'עדכון':'הגשה',days().filter(d=>pk(v.picks,d).length).map(d=>DAYS[d]+': '+pickTxt(pk(v.picks,d))).join(' | '),v.note||'',i?changeTxt(pv,v.picks).join(' | ')||'הערה בלבד':''])})}));
+  allReqs().forEach(r=>{const s=[...r.dates].sort();C.push([nameOf(r.uid),fmtD(s[0]),fmtD(s[s.length-1]),ranges(r.dates),r.dates.length,REASONS[r.reason]||'',r.detail||'',fmtT(r.t),STN[r.st],r.mnote||'',r.dt?fmtT(r.dt):'',r.by==='mgr'?'מנהל':'עובד'])});
+  return {A,B,C,D}}
+function saveFile(name,data,type){const b=new Blob([data],{type});const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000)}
+async function exportX(){
+  S.ok='מכין את הקובץ…';render();
+  let X;try{X=await loadX()}catch(e){S.ok='';S.msg='לא הצלחתי לטעון את רכיב האקסל. נסה שוב.';render();return}
+  const {A,B,C,D}=reportRows(),wb=X.utils.book_new();wb.Workbook={Views:[{RTL:true}]};
+  [['זמינות לפי שבוע',A],['הגישו ולא הגישו',B],['בקשות חופש',C],['היסטוריית שינויים',D]].forEach(([n,rows])=>{const ws=X.utils.aoa_to_sheet(rows);ws['!cols']=rows[0].map((_,i)=>({wch:i===4||i===6?36:16}));X.utils.book_append_sheet(wb,ws,n)});
+  const buf=X.write(wb,{bookType:'xlsx',type:'array'});
+  saveFile(`RONCH-קריון-דוח-${ilToday()}.xlsx`,buf,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');S.ok='הקובץ ירד למכשיר'
+  render()}
+function backup(){const data={exported:new Date().toISOString(),settings:S.cfg,staff:S.staff,accounts:S.accts,availability:S.availAll,leave:S.leaveAll,schedules:S.schedAll,published:S.pubAll};
+  saveFile(`RONCH-גיבוי-${ilToday()}.json`,JSON.stringify(data,null,1),'application/json');S.ok='הגיבוי ירד למכשיר';render()}
+
+/* ---------- events ---------- */
+document.addEventListener('input',e=>{const t=e.target;if(!t.id)return;S.form[t.id]=t.value;if(t.id==='note'&&!S.dirty){S.dirty=true}});
+document.addEventListener('change',e=>{const t=e.target;
+  if(t.id==='lvReason'||t.id==='excWho'){S.form[t.id]=t.value;render();return}
+  if(t.dataset.add===undefined||!t.value)return;
+  const d=t.dataset.add,[id,o]=t.value.split('|'),cells=cloneCells();(cells[d]=cells[d]||[]).push({e:id,o});saveSched({cells})});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.target.id==='auPass'||e.target.id==='auEmail')&&!S.session){const b=document.querySelector('[data-act="login"],[data-act="signup"],[data-act="forgot"]');if(b)b.click()}});
+const busy=new Set();
+document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-act]');if(!b||b.disabled)return;const a=b.dataset.act,ds=b.dataset;
+  if(busy.has(a))return;
+  S.msg='';if(a!=='cald'&&a!=='calm')S.ok='';if(!['clear','toggleActive','role'].includes(a))S.confirm=null;
+  const slow=['login','signup','forgot','setPass','submit','sendLeave','sendExc','decide','pub','saveMe','saveStaff','toggleActive','role','unlock'];
+  if(slow.includes(a)){busy.add(a);b.disabled=true}
+  try{switch(a){
+  case 'authm':S.auth=ds.v;break;
+  case 'login':{const f=S.form;if(!f.auEmail||!f.auPass){S.msg='מלא מייל וסיסמה';break}
+    const {error}=await sb.auth.signInWithPassword({email:f.auEmail.trim(),password:f.auPass});if(error)S.msg=errMsg(error);else S.form={};break}
+  case 'signup':{const f=S.form,n=(f.rgName||'').trim().replace(/\s+/g,' ');
+    if(n.length<2){S.msg='כתוב שם מלא';break}if(!/\S+@\S+\.\S+/.test(f.auEmail||'')){S.msg='כתוב מייל תקין';break}if((f.auPass||'').length<6){S.msg='הסיסמה צריכה להיות לפחות 6 תווים';break}
+    const {data,error}=await sb.auth.signUp({email:f.auEmail.trim(),password:f.auPass,options:{data:{name:n,phone:(f.rgPhone||'').trim()},emailRedirectTo:location.origin+location.pathname}});
+    if(error){S.msg=errMsg(error);break}
+    if(!data.session){S.auth='sent';S.ok='שלחנו לך מייל לאישור ההרשמה. לחץ על הקישור שבו, ואז היכנס עם המייל והסיסמה.'}else S.form={};break}
+  case 'forgot':{const f=S.form;if(!f.auEmail){S.msg='כתוב את המייל שלך';break}
+    const {error}=await sb.auth.resetPasswordForEmail(f.auEmail.trim(),{redirectTo:location.origin+location.pathname});if(error){S.msg=errMsg(error);break}S.auth='sent';S.ok='אם המייל רשום, נשלח אליו קישור לבחירת סיסמה חדשה.';break}
+  case 'setPass':{if((S.form.newPass||'').length<6){S.msg='לפחות 6 תווים';break}const {error}=await sb.auth.updateUser({password:S.form.newPass});if(error){S.msg=errMsg(error);break}S.recovery=false;S.form={};S.ok='הסיסמה עודכנה';break}
+  case 'logout':await sb.auth.signOut();S.form={};S.auth='login';break;
+  case 'reload':await loadAll();return;
+  case 'mode':S.mode=ds.v;S.modeSet=true;S.wk=ds.v==='mgr'?upcoming():openWeek();S.tgWk=null;subWeek();break;
+  case 'tab':S.tab=ds.v;S.edit=null;break;
+  case 'goSched':S.tab='sched';S.wk=ds.v;subWeek();break;
+  case 'etab':S.etab=ds.v;S.cal=null;S.calSel=[];break;
+  case 'wk':S.wk=ds.n==='0'?(S.mode==='mgr'?upcoming():openWeek()):addDays(S.wk,7*ds.n);S.tgWk=null;subWeek();break;
+  case 'editMe':S.edit=S.edit==='me'?null:'me';S.form.meName=undefined;S.form.mePhone=undefined;break;
+  case 'saveMe':{const n=(S.form.meName??S.me.name).trim();if(n.length<2){S.msg='כתוב שם מלא';break}
+    if(await run(()=>sb.from('profiles').update({name:n,phone:(S.form.mePhone??S.me.phone??'').trim()}).eq('id',S.uid),'הפרטים נשמרו'))S.edit=null;break}
+  case 'copyPrev':{const p=(S.avail.weeks||{})[addDays(S.wk,-7)];if(!p||!canEditWk(S.wk))break;S.pick=JSON.parse(JSON.stringify(p.picks||{}));S.dirty=true;S.ok='הועתק. בדוק ושלח.';break}
+  case 'pick':{if(!canEditWk(S.wk))break;const p={...getPicks()};if(!ds.o)delete p[ds.d];else{const c=pk(p,ds.d);p[ds.d]=c.includes(ds.o)?c.filter(x=>x!==ds.o):[...c,ds.o];if(!p[ds.d].length)delete p[ds.d]}S.pick=p;S.dirty=true;break}
+  case 'submit':{if(!canEditWk(S.wk)){S.msg='ההגשה לשבוע הזה כבר נסגרה.';break}
+    const picks={...getPicks()},prev=(S.avail.weeks||{})[S.wk],note=S.form.note!==undefined?S.form.note:(prev&&prev.note)||'';
+    if(prev&&JSON.stringify(prev.picks||{})===JSON.stringify(picks)&&(prev.note||'')===note){S.dirty=false;S.pick=null;S.ok='אין שינויים לשמור';break}
+    const wk=S.wk,now=Date.now();
+    if(await run(()=>sb.from('availability').upsert({user_id:S.uid,week:wk,picks,note},{onConflict:'user_id,week'}))){S.pick=null;S.dirty=false;S.form.note=undefined;S.sent={kind:prev?'upd':'sub',wk,t:now,prev:prev&&prev.picks,now:picks};window.scrollTo(0,0)}
+    break}
+  case 'calm':{const f=parse(S.cal);S.cal=ymd(new Date(f.getFullYear(),f.getMonth()+ +ds.n,1));break}
+  case 'cald':{const k=ds.k;S.calSel=S.calSel.includes(k)?S.calSel.filter(x=>x!==k):[...S.calSel,k].sort();break}
+  case 'calclr':S.calSel=[];break;
+  case 'sendLeave':{const f=S.form,min=addDays(ilToday(),LEAD);
+    if(!S.calSel.length){S.msg='בחר לפחות תאריך אחד';break}
+    if(S.calSel.some(k=>k<min)){S.msg=`אפשר לבקש רק מ-${fmtD(min)} והלאה. למקרה חריג פנה למנהל.`;break}
+    if(!f.lvReason){S.msg='בחר סיבה לבקשה';break}
+    if(f.lvReason==='other'&&!(f.lvDetail||'').trim()){S.msg='כתוב פירוט לסיבה';break}
+    const r={dates:[...S.calSel],reason:f.lvReason,detail:(f.lvDetail||'').trim()};
+    if(await run(()=>sb.from('leave_requests').insert({user_id:S.uid,...r}))){S.sentLeave=r;S.ok='LEAVE_SENT';S.calSel=[];S.form.lvReason='';S.form.lvDetail='';window.scrollTo(0,0)}break}
+  case 'cancelLeave':await run(()=>sb.rpc('cancel_leave',{rid:ds.id}),'הבקשה בוטלה');break;
+  case 'lf':S.lf=ds.v;S.tab='leave';break;
+  case 'exc':S.exc=!S.exc;S.cal=null;S.calSel=[];break;
+  case 'sendExc':{const f=S.form,u=f.excWho;if(!u){S.msg='בחר עובד';break}if(!S.calSel.length){S.msg='בחר תאריכים';break}if(!f.lvReason){S.msg='בחר סיבה';break}
+    if(await run(()=>sb.from('leave_requests').insert({user_id:u,dates:[...S.calSel],reason:f.lvReason,detail:(f.lvDetail||'').trim(),by_manager:true}),'הבקשה נוספה')){S.exc=false;S.calSel=[];S.form.lvReason='';S.form.lvDetail='';S.lf='pending'}break}
+  case 'decide':{const note=ds.v==='pending'?'':(S.form['ln_'+ds.u+'_'+ds.id]||'').trim();
+    if(await run(()=>sb.from('leave_requests').update({status:ds.v,manager_note:note}).eq('id',ds.id),ds.v==='approved'?'הבקשה אושרה. העובד רואה את העדכון באזור האישי שלו.':ds.v==='rejected'?'הבקשה נדחתה. העובד רואה את העדכון באזור האישי שלו.':'הבקשה הוחזרה להמתנה'))S.lf=ds.v;break}
+  case 'seen':await run(()=>sb.from('manager_state').upsert({user_id:S.uid,seen:new Date().toISOString()}));break;
+  case 'editStaff':S.edit=ds.e||null;S.form.ed_name=undefined;S.form.ed_phone=undefined;break;
+  case 'saveStaff':{const s=S.staff.find(x=>x.id===ds.e);if(!s)break;const n=(S.form.ed_name??s.name).trim();if(n.length<2){S.msg='שם קצר מדי';break}
+    if(await run(()=>sb.from('profiles').update({name:n,phone:(S.form.ed_phone??s.phone??'').trim()}).eq('id',ds.e),'הפרטים עודכנו'))S.edit=null;break}
+  case 'toggleActive':{if(S.confirm!=='act_'+ds.e){S.confirm='act_'+ds.e;break}S.confirm=null;const on=(S.accts[ds.e]||{}).active!==false;
+    await run(()=>sb.from('profiles').update({active:!on}).eq('id',ds.e),on?'החשבון הושבת. הנתונים שלו נשמרים.':'החשבון הופעל מחדש');break}
+  case 'role':{if(S.confirm!=='role_'+ds.e){S.confirm='role_'+ds.e;break}S.confirm=null;const s=S.staff.find(x=>x.id===ds.e);if(!s)break;const to=s.role==='manager'?'employee':'manager';
+    await run(()=>sb.from('profiles').update({role:to}).eq('id',ds.e),to==='manager'?'ניתנה הרשאת מנהל':'הרשאת המנהל הוסרה');break}
+  case 'unlock':{const has=((S.accts[ds.e]||{}).unlock||{})[S.wk];
+    await run(()=>has?sb.from('unlocks').delete().eq('user_id',ds.e).eq('week',S.wk):sb.from('unlocks').insert({user_id:ds.e,week:S.wk}),has?'העריכה ננעלה שוב':'העובד יכול לערוך שוב את הזמינות לשבוע הזה');break}
+  case 'hist':S.tab='hist';S.open={[ds.e]:true};break;
+  case 'open':S.open[ds.e]=!S.open[ds.e];break;
+  case 'xlsx':exportX();return;
+  case 'backup':backup();return;
+  case 'savePhone':await saveCfg({mgrPhone:(S.form.mgrPhone??'').trim()});S.ok='נשמר';break;
+  case 'tg':{const t=S.tg[ds.e]=S.tg[ds.e]||{};t[ds.s]=Math.max(0,(t[ds.s]||0)+ +ds.n);break}
+  case 'tgAll':people().forEach(e=>{const p=(S.subs[e.id]&&S.subs[e.id].picks)||{};const c=s=>days().filter(d=>hasS(p,d,s)).length;S.tg[e.id]={m:c('m'),e:c('e'),x:c('x')}});break;
+  case 'tgZero':S.tg={};S.ok='הכמויות אופסו';break;
+  case 'auto':{const r=auto();S.warn=r.warn;S.tab='sched';saveSched({cells:r.cells,targets:JSON.parse(JSON.stringify(S.tg))});window.scrollTo(0,0);return}
+  case 'rm':{const cells=cloneCells();cells[ds.d]=(cells[ds.d]||[]).filter(x=>x.e!==ds.e);saveSched({cells});return}
+  case 'pub':if(ds.v==='1'){const c=pubCells(),wk=S.wk;
+      if(await run(()=>sb.from('published_schedules').upsert({week:wk,cells:c,published_at:new Date().toISOString()})))await saveSched({published:true},'פורסם. העובדים רואים את הסידור.')}
+    else{const wk=S.wk;if(await run(()=>sb.from('published_schedules').delete().eq('week',wk)))await saveSched({published:false},'הפרסום בוטל')}break;
+  case 'clear':if(!ds.v){S.confirm='clear';break}S.confirm=null;if(ds.v==='no')break;S.warn=[];saveSched({cells:{}},'הסידור נוקה');return;
+  case 'copy':try{await navigator.clipboard.writeText(waText());S.ok='הועתק. הדבק בקבוצת העובדים.'}catch(e){S.msg='ההעתקה נחסמה בדפדפן הזה'}break;
+  case 'day':{const i=+ds.d,cur=S.cfg.days.map(Number);saveCfg({days:cur.includes(i)?cur.filter(x=>x!==i):[...cur,i].sort()});return}
+  case 'ev':saveCfg({ev:Math.min(6,Math.max(1,(+S.cfg.ev||1)+ +ds.n))});return;
+  case 'm10':saveCfg({m10:!S.cfg.m10});return;
+  case 'msT':saveCfg({ms:!msOn()});return;
+  case 'msN':saveCfg({msNeed:Math.min(6,Math.max(1,(+S.cfg.msNeed||1)+ +ds.n))});return;
+  }}finally{busy.delete(a)}
+  render();
+});
+}
+</script>
+</body>
+</html>
