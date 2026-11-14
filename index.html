@@ -178,7 +178,8 @@ function errMsg(e){const m=String((e&&(e.message||e.error_description))||e||'');
   return 'הפעולה נכשלה: '+m}
 async function run(fn,okMsg){try{const r=await fn();if(r&&r.error)throw r.error;if(okMsg)S.ok=okMsg;await loadAll();return true}catch(e){S.msg=errMsg(e);render();return false}}
 /* ---------- data access ---------- */
-const active=st=>(S.accts[st.id]||{}).active!==false;
+const active=st=>{const a=S.accts[st.id]||{};return a.active!==false&&a.approved!==false};
+const pendingStaff=()=>S.staff.filter(s=>{const a=S.accts[s.id]||{};return a.approved===false&&a.active!==false});
 function people(){const sub=subsMap(S.wk);
   return S.staff.filter(s=>active(s)&&(s.role!=='manager'||sub[s.id])).map(s=>({id:s.id,name:s.name,phone:s.phone})).sort((x,y)=>String(x.name).localeCompare(String(y.name),'he'))}
 function subsMap(wk){const m={};S.staff.filter(active).forEach(s=>{const x=((S.availAll[s.id]||{}).weeks||{})[wk];if(x)m[s.id]=x});return m}
@@ -201,15 +202,15 @@ async function loadAll(){
     if(st.error)throw st.error;
     const me=pr.find(p=>p.id===S.uid);
     let sc=[],mst=null;
-    if(me&&me.role==='manager'&&me.active){sc=await fetchAll('schedules');const r=await sb.from('manager_state').select('seen').eq('user_id',S.uid).maybeSingle();mst=r.data}
+    if(me&&me.role==='manager'&&me.active&&me.approved!==false){sc=await fetchAll('schedules');const r=await sb.from('manager_state').select('seen').eq('user_id',S.uid).maybeSingle();mst=r.data}
     if(seq!==loadSeq)return;
     S.cfg={...DEF,...((st.data&&st.data.data)||{})};
     S.me=me||null;
-    const wasOwner=S.owner;S.owner=!!(me&&me.role==='manager'&&me.active);
+    const wasOwner=S.owner;S.owner=!!(me&&me.role==='manager'&&me.active&&me.approved!==false);
     if(S.owner&&!wasOwner&&S.mode==='emp'&&!S.modeSet){S.mode='mgr';S.wk=upcoming()}
     if(!S.owner)S.mode='emp';
-    S.staff=pr.map(p=>({id:p.id,name:p.name,phone:p.phone,role:p.role,t:ms(p.created_at)})).sort((a,b)=>String(a.name).localeCompare(String(b.name),'he'));
-    const A={};pr.forEach(p=>A[p.id]={active:p.active,role:p.role,unlock:{},leave:{}});
+    S.staff=pr.map(p=>({id:p.id,name:p.name,phone:p.phone,role:p.role,approved:p.approved!==false,t:ms(p.created_at)})).sort((a,b)=>String(a.name).localeCompare(String(b.name),'he'));
+    const A={};pr.forEach(p=>A[p.id]={active:p.active,approved:p.approved!==false,role:p.role,unlock:{},leave:{}});
     ul.forEach(u=>{(A[u.user_id]=A[u.user_id]||{unlock:{},leave:{}}).unlock[u.week]=true});
     lv.forEach(r=>{if(r.status==='approved'||r.status==='rejected')(A[r.user_id]=A[r.user_id]||{unlock:{},leave:{}}).leave[r.id]={st:r.status,note:r.manager_note,t:ms(r.decided_at)}});
     S.accts=A;
@@ -277,7 +278,8 @@ function header(){
 function emp(){
   if(S.me===undefined)return '<div class="band"><p class="mute">טוען…</p></div>';
   if(!S.me)return '<div class="band narrow"><p class="mute">יוצר את החשבון שלך…</p><button data-act="reload">רענון</button> <button class="ghost" data-act="logout">יציאה</button></div>';
-  if(S.acct.active===false)return '<div class="band narrow"><h2>החשבון הושבת</h2><p>החשבון שלך במערכת הושבת על ידי מנהל הסניף. לפרטים פנה למנהל.</p><button data-act="logout">יציאה</button></div>';
+  if(S.me.approved===false&&S.me.active!==false)return `<div class="band narrow"><h2>שלום ${esc(S.me.name)}, ההרשמה התקבלה</h2><p>החשבון שלך ממתין לאישור של מנהל הסניף. אחרי האישור תוכל להגיש זמינות ולבקש חופש מאותו קישור.</p><p class="mute">הדף יתעדכן לבד ברגע שתאושר.</p><button class="ghost" data-act="logout">יציאה</button></div>`;
+  if(S.acct.active===false||S.me.approved===false)return '<div class="band narrow"><h2>החשבון הושבת</h2><p>החשבון שלך במערכת הושבת על ידי מנהל הסניף. לפרטים פנה למנהל.</p><button data-act="logout">יציאה</button></div>';
   let h=`<div class="band"><div class="hd" style="margin-bottom:12px"><h2 style="margin:0">שלום ${esc(S.me.name)}</h2><span class="chips"><button class="ghost" data-act="editMe">עריכת פרטים</button><button class="ghost" data-act="logout">יציאה</button></span></div>`;
   if(S.edit==='me')h+=meForm();
   h+=`<div class="tabs"><button class="${S.etab==='av'?'on':''}" data-act="etab" data-v="av">זמינות שבועית</button><button class="${S.etab==='lv'?'on':''}" data-act="etab" data-v="lv">בקשת חופש</button></div>`;
@@ -353,7 +355,8 @@ function leaveMsg(r,name){return `📅 בקשת חופש חדשה – ${BR}\n\n�
 /* ---------- manager ---------- */
 function mgr(){
   const t=S.tab,newEv=events().filter(e=>e.t>S.seen).length,pend=allReqs().filter(r=>r.st==='pending').length;
-  const tabs=[['dash','לוח בקרה',newEv],['subs','הגשות ושיבוץ'],['sched','הסידור'],['leave','חופשות',pend],['staff','עובדים'],['hist','היסטוריה ודוחות'],['set','הגדרות']];
+  const pendN=pendingStaff().length;
+  const tabs=[['dash','לוח בקרה',newEv+pendN],['subs','הגשות ושיבוץ'],['sched','הסידור'],['leave','חופשות',pend],['staff','עובדים',pendN],['hist','היסטוריה ודוחות'],['set','הגדרות']];
   let h=`<div class="band"><div class="tabs">${tabs.map(([k,l,n])=>`<button class="${t===k?'on':''}" data-act="tab" data-v="${k}">${l}${n?`<span class="dot">${n}</span>`:''}</button>`).join('')}</div>`;
   if(S.ok&&S.ok!=='LEAVE_SENT'&&!['subs','sched'].includes(t))h+=`<p class="ok">${esc(S.ok)}</p>`;
   return h+({dash,subs:subsTab,sched:schedTab,leave:leaveTab,staff:staffTab,hist:histTab,set:setTab}[t]||dash)();
@@ -361,7 +364,8 @@ function mgr(){
 function dash(){
   const ow=openWeek(),st=S.staff.filter(s=>active(s)&&s.role!=='manager'),done=st.filter(s=>((S.availAll[s.id]||{}).weeks||{})[ow]),not=st.filter(s=>!done.includes(s));
   const R=allReqs(),c=k=>R.filter(r=>r.st===k).length,ev=events(),nw=ev.filter(e=>e.t>S.seen);
-  let h=`<h2>מחזור ההגשה הפתוח: שבוע ${fmtD(ow)}–${fmtD(addDays(ow,6))}</h2><p class="mute" style="margin-top:-6px">ההגשה נסגרת אוטומטית ביום רביעי ${fmtD(deadline(ow))} ב-13:00 שעון ישראל (נותרו ${left(ow)}).</p>`;
+  const pd=pendingStaff();let h=pd.length?`<div class="warn"><b>${pd.length} נרשמים חדשים ממתינים לאישור שלך:</b> ${pd.map(s=>esc(s.name)).join(', ')} <button class="x" data-act="tab" data-v="staff">לאישור</button></div>`:'';
+  h+=`<h2>מחזור ההגשה הפתוח: שבוע ${fmtD(ow)}–${fmtD(addDays(ow,6))}</h2><p class="mute" style="margin-top:-6px">ההגשה נסגרת אוטומטית ביום רביעי ${fmtD(deadline(ow))} ב-13:00 שעון ישראל (נותרו ${left(ow)}).</p>`;
   h+=`<div class="tiles"><div class="tile"><b>${done.length}</b>הגישו זמינות</div><div class="tile ${not.length?'hot':''}"><b>${not.length}</b>עוד לא הגישו</div>
    <button class="tile ${c('pending')?'hot':''}" data-act="lf" data-v="pending"><b>${c('pending')}</b>חופשות ממתינות</button><button class="tile" data-act="lf" data-v="approved"><b>${c('approved')}</b>חופשות שאושרו</button><button class="tile" data-act="lf" data-v="rejected"><b>${c('rejected')}</b>חופשות שנדחו</button></div>`;
   h+=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));align-items:start">`;
@@ -373,7 +377,7 @@ function dash(){
   return h+'</div>'}
 function evRow(e,nw){const n=esc(nameOf(e.uid));const txt=e.k==='leave'?`${n} ביקש חופש: ${ranges(e.r.dates)}`:e.k==='sub'?`${n} הגיש זמינות לשבוע ${short(e.wk)}`:`${n} עדכן זמינות לשבוע ${short(e.wk)}`;
   return `<div class="list"><div class="it"><span>${nw?'<b>חדש</b> · ':''}${txt}</span><span class="mute" style="font-size:14px">${fmtT(e.t)}</span></div></div>`}
-const addHelp=()=>`כדי להוסיף עובד: שלח לו את הקישור לאתר (${esc(location.origin+location.pathname)}). הוא לוחץ "עובד חדש? הרשמה", ממלא שם, טלפון, מייל וסיסמה, ומופיע כאן אוטומטית.`;
+const addHelp=()=>`כדי להוסיף עובד: שלח לו את הקישור לאתר (${esc(location.origin+location.pathname)}). הוא לוחץ "עובד חדש? הרשמה" וממלא שם, טלפון, מייל וסיסמה. אחר כך הוא מופיע כאן תחת "ממתינים לאישור", ורק אחרי שתאשר הוא יכול להיכנס למערכת.`;
 function subsTab(){
   const ds=days(),P=people(),n=P.filter(e=>S.subs[e.id]).length;
   let h=`<p class="mute" style="margin-top:0">${n} מתוך ${P.length} עובדים הגישו לשבוע הזה${isLockedWk(S.wk)?' (ההגשה נסגרה)':''}. קבע לכל עובד כמה משמרות לתת לו, ואז לחץ "שבץ אוטומטית".</p><div class="grid">`;
@@ -462,8 +466,9 @@ function leaveTab(){
      ${r.st==='approved'||r.st==='rejected'?`<div class="chips">${waBtn(s.phone,full,'עדכון לעובד בוואטסאפ')}<button class="x" data-act="decide" data-u="${r.uid}" data-id="${r.id}" data-v="pending">החזרה להמתנה</button></div>`:''}</div>`}).join('')||'<p class="mute">אין בקשות בקטגוריה הזאת.</p>')+'</div></div>';
   return h}
 function staffTab(){
-  const act=S.staff.filter(active),off=S.staff.filter(s=>!active(s)),lk=isLockedWk(S.wk);
-  let h=`<div class="note">${addHelp()}</div><h2>עובדים פעילים (${act.length})</h2><div class="grid">`;
+  const pd=pendingStaff(),act=S.staff.filter(active),off=S.staff.filter(s=>!active(s)&&!pd.includes(s)),lk=isLockedWk(S.wk);
+  let h=pd.length?`<h2>ממתינים לאישור (${pd.length})</h2><div class="grid" style="margin-bottom:24px">${pd.map(s=>`<div class="card" style="border-color:var(--wheat)"><div class="hd"><b>${esc(s.name)}</b><span class="mute">${esc(s.phone||'אין טלפון')}</span></div><div class="mute" style="font-size:14px">נרשם ${fmtT(s.t)}</div><div class="chips"><button class="pri" data-act="approve" data-e="${s.id}">אישור כעובד</button><button class="danger" data-act="reject" data-e="${s.id}">${S.confirm==='rej_'+s.id?'בטוח? לחץ שוב':'דחייה'}</button></div></div>`).join('')}</div>`:'';
+  h+=`<div class="note">${addHelp()}</div><h2>עובדים פעילים (${act.length})</h2><div class="grid">`;
   const dup=new Set(S.staff.map(s=>String(s.name).trim()).filter((n,i,a)=>a.indexOf(n)!==i));
   const card=s=>{const a=S.accts[s.id]||{},ul=(a.unlock||{})[S.wk],wks=Object.keys((S.availAll[s.id]||{}).weeks||{}).length,ed=S.edit===s.id,f=S.form;
     return `<div class="card"><div class="hd"><b>${esc(s.name)}${s.role==='manager'?' <span class="tag">מנהל</span>':''}${dup.has(String(s.name).trim())?' <span class="flag">שם כפול</span>':''}</b><span class="mute">${esc(s.phone||'אין טלפון')}</span></div>
@@ -564,7 +569,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.target.id==='auPa
 const busy=new Set();
 document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-act]');if(!b||b.disabled)return;const a=b.dataset.act,ds=b.dataset;
   if(busy.has(a))return;
-  S.msg='';if(a!=='cald'&&a!=='calm')S.ok='';if(!['clear','toggleActive','role'].includes(a))S.confirm=null;
+  S.msg='';if(a!=='cald'&&a!=='calm')S.ok='';if(!['clear','toggleActive','role','reject'].includes(a))S.confirm=null;
   const slow=['login','signup','forgot','setPass','submit','sendLeave','sendExc','decide','pub','saveMe','saveStaff','toggleActive','role','unlock'];
   if(slow.includes(a)){busy.add(a);b.disabled=true}
   try{switch(a){
@@ -619,7 +624,9 @@ document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-ac
   case 'saveStaff':{const s=S.staff.find(x=>x.id===ds.e);if(!s)break;const n=(S.form.ed_name??s.name).trim();if(n.length<2){S.msg='שם קצר מדי';break}
     if(await run(()=>sb.from('profiles').update({name:n,phone:(S.form.ed_phone??s.phone??'').trim()}).eq('id',ds.e),'הפרטים עודכנו'))S.edit=null;break}
   case 'toggleActive':{if(S.confirm!=='act_'+ds.e){S.confirm='act_'+ds.e;break}S.confirm=null;const on=(S.accts[ds.e]||{}).active!==false;
-    await run(()=>sb.from('profiles').update({active:!on}).eq('id',ds.e),on?'החשבון הושבת. הנתונים שלו נשמרים.':'החשבון הופעל מחדש');break}
+    await run(()=>sb.from('profiles').update(on?{active:false}:{active:true,approved:true}).eq('id',ds.e),on?'החשבון הושבת. הנתונים שלו נשמרים.':'החשבון הופעל מחדש');break}
+  case 'approve':await run(()=>sb.from('profiles').update({approved:true,active:true}).eq('id',ds.e),'העובד אושר ויכול להיכנס');break;
+  case 'reject':{if(S.confirm!=='rej_'+ds.e){S.confirm='rej_'+ds.e;break}S.confirm=null;await run(()=>sb.from('profiles').update({active:false}).eq('id',ds.e),'ההרשמה נדחתה. אפשר לאשר אותו בהמשך מרשימת המושבתים.');break}
   case 'role':{if(S.confirm!=='role_'+ds.e){S.confirm='role_'+ds.e;break}S.confirm=null;const s=S.staff.find(x=>x.id===ds.e);if(!s)break;const to=s.role==='manager'?'employee':'manager';
     await run(()=>sb.from('profiles').update({role:to}).eq('id',ds.e),to==='manager'?'ניתנה הרשאת מנהל':'הרשאת המנהל הוסרה');break}
   case 'unlock':{const has=((S.accts[ds.e]||{}).unlock||{})[S.wk];
