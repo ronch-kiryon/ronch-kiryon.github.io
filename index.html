@@ -207,7 +207,7 @@ async function loadAll(){
     S.cfg={...DEF,...((st.data&&st.data.data)||{})};
     S.me=me||null;
     const wasOwner=S.owner;S.owner=!!(me&&me.role==='manager'&&me.active&&me.approved!==false);
-    if(S.owner&&!wasOwner&&S.mode==='emp'&&!S.modeSet){S.mode='mgr';S.wk=upcoming()}
+    if(S.owner&&!wasOwner&&S.mode==='emp'&&!S.modeSet){S.mode='mgr';S.wk=openWeek()}
     if(!S.owner)S.mode='emp';
     S.staff=pr.map(p=>({id:p.id,name:p.name,phone:p.phone,role:p.role,approved:p.approved!==false,t:ms(p.created_at)})).sort((a,b)=>String(a.name).localeCompare(String(b.name),'he'));
     const A={};pr.forEach(p=>A[p.id]={active:p.active,approved:p.approved!==false,role:p.role,unlock:{},leave:{}});
@@ -220,8 +220,8 @@ async function loadAll(){
     const L={};lv.forEach(r=>{((L[r.user_id]=L[r.user_id]||{reqs:{}}).reqs)[r.id]={dates:r.dates,reason:r.reason,detail:r.detail,t:ms(r.created_at),cancelled:r.status==='cancelled',by:r.by_manager?'mgr':''}});
     S.leaveAll=L;
     S.avail=V[S.uid]||{};S.leave=L[S.uid]||{};S.acct=A[S.uid]||{};
-    S.pubAll={};ps.forEach(p=>S.pubAll[p.week]={cells:p.cells,t:ms(p.published_at)});
-    S.schedAll={};sc.forEach(x=>S.schedAll[x.week]={cells:x.cells,targets:x.targets,published:x.published,t:ms(x.updated_at)});
+    S.pubAll={};ps.forEach(p=>S.pubAll[p.week]={cells:p.cells,notes:p.notes||{},t:ms(p.published_at)});
+    S.schedAll={};sc.forEach(x=>S.schedAll[x.week]={cells:x.cells,targets:x.targets,notes:x.notes||{},published:x.published,t:ms(x.updated_at)});
     S.seen=mst?ms(mst.seen):0;
     syncWeek();S.loading=false;
   }catch(e){if(seq!==loadSeq)return;S.loading=false;S.msg=errMsg(e)}
@@ -271,7 +271,7 @@ function header(){
   ${S.owner?`<div class="chips"><button class="${S.mode==='mgr'?'on':''}" data-act="mode" data-v="mgr">מנהל</button><button class="${S.mode==='emp'?'on':''}" data-act="mode" data-v="emp">עובד</button></div>`:''}</div>
   ${showWk?`<div class="wk"><button data-act="wk" data-n="-1" aria-label="שבוע קודם">→</button><b>שבוע ${rng}</b><button data-act="wk" data-n="1" aria-label="שבוע הבא">←</button>
   <span class="lk">${lk?'ההגשה נסגרה':'פתוח להגשה עד רביעי '+short(deadline(S.wk))+' 13:00'}</span>
-  ${S.wk!==(S.mode==='mgr'?upcoming():openWeek())?`<button data-act="wk" data-n="0">${S.mode==='mgr'?'השבוע הקרוב':'השבוע להגשה'}</button>`:''}</div>`:''}</header>`;
+  ${S.wk!==openWeek()?`<button data-act="wk" data-n="0">השבוע הפתוח להגשה</button>`:''}</div>`:''}</header>`;
 }
 
 /* ---------- employee ---------- */
@@ -304,7 +304,7 @@ function empAvail(){
   const x=(S.avail.weeks||{})[S.wk],picks=getPicks(),ds=days(),ed=canEditWk(S.wk);
   let h='';
   if(S.pub){const mine=ds.filter(d=>((S.pub.cells||{})[d]||[]).some(c=>c.e===S.uid));
-    h+=`<h3 style="margin-top:0">הסידור הסופי</h3><p class="mute" style="margin:0 0 12px">${mine.length?'יש לך '+mine.length+' משמרות השבוע, מסומנות בצהוב.':'לא שובצת השבוע.'}</p>`+board(false,S.uid)+'<hr style="border:0;border-top:1px solid var(--line);margin:28px 0">';}
+    h+=`<h3 style="margin-top:0">הסידור הסופי</h3><p class="mute" style="margin:0 0 12px">${mine.length?'יש לך '+mine.length+' משמרות השבוע, מסומנות בצהוב.':'לא שובצת השבוע.'}</p><p style="margin:0 0 12px"><button data-act="img">שמירת הסידור כתמונה</button>${S.ok&&S.etab==='av'&&/תמונ/.test(S.ok)?` <span class="ok">${esc(S.ok)}</span>`:''}</p>${imgPreview()}`+board(false,S.uid)+'<hr style="border:0;border-top:1px solid var(--line);margin:28px 0">';}
   if(S.sent&&S.sent.wk===S.wk){const msg=availMsg(S.sent);
     h+=`<div class="good"><b>${S.sent.kind==='sub'?'הזמינות נשלחה ונשמרה.':'העדכון נשמר.'}</b> ${S.cfg.mgrPhone?'אפשר לשלוח למנהל הודעה מוכנה:':''}<div style="margin-top:8px">${waBtn(S.cfg.mgrPhone,msg,'פתיחת וואטסאפ עם ההודעה למנהל')}</div></div>`}
   h+=`<h3 style="margin-top:0">הזמינות שלך לשבוע</h3>`;
@@ -380,7 +380,8 @@ function evRow(e,nw){const n=esc(nameOf(e.uid));const txt=e.k==='leave'?`${n} ב
 const addHelp=()=>`כדי להוסיף עובד: שלח לו את הקישור לאתר (${esc(location.origin+location.pathname)}). הוא לוחץ "עובד חדש? הרשמה" וממלא שם, טלפון, מייל וסיסמה. אחר כך הוא מופיע כאן תחת "ממתינים לאישור", ורק אחרי שתאשר הוא יכול להיכנס למערכת.`;
 function subsTab(){
   const ds=days(),P=people(),n=P.filter(e=>S.subs[e.id]).length;
-  let h=`<p class="mute" style="margin-top:0">${n} מתוך ${P.length} עובדים הגישו לשבוע הזה${isLockedWk(S.wk)?' (ההגשה נסגרה)':''}. קבע לכל עובד כמה משמרות לתת לו, ואז לחץ "שבץ אוטומטית".</p><div class="grid">`;
+  const pdn=pendingStaff().length;
+  let h=`<p class="mute" style="margin-top:0">${n} מתוך ${P.length} עובדים הגישו לשבוע הזה. ${isLockedWk(S.wk)?'ההגשה לשבוע הזה נסגרה.':'ההגשה עדיין פתוחה, וההגשות מופיעות כאן מיד כשעובד שולח או מעדכן.'} קבע לכל עובד כמה משמרות לתת לו, ואז לחץ "שבץ אוטומטית".</p>${!P.length?`<div class="note">${pdn?`יש ${pdn} נרשמים שממתינים לאישור שלך. עד שתאשר אותם הם לא מופיעים כאן. <button class="x" data-act="tab" data-v="staff">לאישור</button>`:'עוד אין עובדים מאושרים.'}</div>`:''}<div class="grid">`;
   h+=P.map(e=>{const sub=S.subs[e.id],p=(sub&&sub.picks)||{};
     const has=s=>ds.filter(d=>hasS(p,d,s)).length;
     const tg=S.tg[e.id]||{};
@@ -410,6 +411,7 @@ function board(edit,meId){
     if(d===6&&msOn()){if(isWork(d))h+='<br>';multi('x',+S.cfg.msNeed||1,'מוצאי שבת')}
     if(edit&&miss)h+=`<div class="miss">חסרים ${miss} עובדים ביום הזה</div>`;
     const off=edit?leaveOn(addDays(S.wk,d)):[];if(off.length)h+=`<div class="mute" style="font-size:14px;margin-top:6px">בחופש מאושר: ${off.map(esc).join(', ')}</div>`;
+    const nt=String(curNotes()[d]||'');if(edit)h+=`<input id="dn_${d}" data-dnote="${d}" value="${esc(nt)}" placeholder="הערה ליום (למשל: מ16:00)" style="margin-top:10px;min-height:40px;font-size:15px">`;else if(nt.trim())h+=`<div class="note" style="margin:8px 0 0;padding:6px 10px;font-size:14px">${esc(nt)}</div>`;
     return h+'</div>'}).join('')+'</div>';
 }
 function flags(x,d){const k=addDays(S.wk,d),f=[];const st=S.staff.find(s=>s.id===x.e);
@@ -421,7 +423,7 @@ function issues(){const out=[];days().forEach(d=>cellsOf(d).forEach(x=>{const k=
   if(onLeave(x.e,k))out.push(`${nameOf(x.e)} משובץ ביום ${DAYS[d]} אבל יש לו חופש מאושר`);
   if(st&&!active(st))out.push(`${nameOf(x.e)} משובץ ביום ${DAYS[d]} אבל החשבון שלו מושבת`)}));return out}
 function stripN(c){const o={};Object.entries(c||{}).forEach(([d,l])=>o[d]=(l||[]).map(x=>({e:x.e,o:x.o})));return JSON.stringify(o)}
-function unpubDirty(wk){const s=S.schedAll[wk],p=S.pubAll[wk];return !!(s&&s.published&&p&&stripN(s.cells)!==stripN(p.cells))}
+function unpubDirty(wk){const s=S.schedAll[wk],p=S.pubAll[wk];return !!(s&&s.published&&p&&(stripN(s.cells)!==stripN(p.cells)||JSON.stringify(s.notes||{})!==JSON.stringify(p.notes||{})))}
 function leaveOn(k){return allReqs().filter(r=>r.st==='approved'&&r.dates.includes(k)).map(r=>nameOf(r.uid))}
 function addOpts(d,o){
   const c=cellsOf(d),busy=new Set(c.map(x=>x.e));
@@ -435,6 +437,7 @@ function addOpts(d,o){
 function schedTab(){
   const pub=S.sched&&S.sched.published,ds=days();
   let h='';
+  h+=imgPreview();
   if(S.warn.length)h+=`<div class="warn"><b>לא הצלחתי לשבץ הכול:</b><ul>${S.warn.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`;
   const iss=issues();if(iss.length)h+=`<div class="warn"><b>כדאי לבדוק:</b><ul>${iss.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`;
   if(unpubDirty(S.wk))h+=`<div class="warn"><b>יש שינויים שהעובדים עוד לא רואים.</b> לחץ "עדכון הפרסום" למטה.</div>`;
@@ -443,7 +446,7 @@ function schedTab(){
   const ids=Object.keys(cnt);
   if(ids.length)h+='<div class="sum">'+ids.map(id=>`<span><b>${esc(nameOf(id))}</b> ${cnt[id].m} בוקר, ${cnt[id].e} ערב${cnt[id].x?', מוצ״ש':''}</span>`).join('')+'</div>';
   h+=board(true)+'</div>';
-  h+=`<div class="bar"><button class="pri" data-act="pub" data-v="1">${pub?'עדכון הפרסום':'פרסום לעובדים'}</button>${pub?'<button data-act="pub" data-v="0">ביטול פרסום</button>':''}<button data-act="copy">העתקה לוואטסאפ</button>
+  h+=`<div class="bar"><button class="pri" data-act="pub" data-v="1">${pub?'עדכון הפרסום':'פרסום לעובדים'}</button>${pub?'<button data-act="pub" data-v="0">ביטול פרסום</button>':''}<button data-act="img">תמונה לוואטסאפ</button><button data-act="copy">העתקה כטקסט</button>
     ${S.confirm==='clear'?'<span class="err">למחוק את כל השיבוצים של השבוע?</span><button class="danger" data-act="clear" data-v="yes">כן, לנקות</button><button data-act="clear" data-v="no">ביטול</button>':'<button class="danger" data-act="clear">ניקוי הסידור</button>'}${S.ok?`<span class="ok">${esc(S.ok)}</span>`:''}</div>`;
   return h;
 }
@@ -528,7 +531,70 @@ function auto(){
   ids.forEach(id=>TY.forEach(s=>{if(need[id][s]>0)warn.push(`${nameOf(id)}: חסרות ${need[id][s]} משמרות ${sName(s)}. הימים שהגיש תפוסים, בחופש, או צמודים למשמרת ערב/בוקר.`)}));
   return {cells,warn};
 }
-function saveSched(patch,okMsg){const base=S.sched||{cells:{},targets:{},published:false};const n={...base,...patch};S.sched=n;S.schedAll[S.wk]=n;render();return run(()=>sb.from('schedules').upsert({week:S.wk,cells:n.cells||{},targets:n.targets||{},published:!!n.published,updated_at:new Date().toISOString()}),okMsg)}
+function saveSched(patch,okMsg){const base=S.sched||{cells:{},targets:{},published:false};const n={...base,...patch};S.sched=n;S.schedAll[S.wk]=n;render();return run(()=>sb.from('schedules').upsert({week:S.wk,cells:n.cells||{},targets:n.targets||{},notes:n.notes||{},published:!!n.published,updated_at:new Date().toISOString()}),okMsg)}
+/* ---------- schedule image for WhatsApp ---------- */
+const curNotes=()=>(S.mode==='mgr'?(S.sched&&S.sched.notes):(S.pub&&S.pub.notes))||{};
+function loadImg(src){return new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.onerror=()=>r(null);i.src=src})}
+function fitText(c,t,max,size,weight){let s=size;do{c.font=`${weight} ${s}px Rubik, Assistant, Arial, sans-serif`;if(c.measureText(t).width<=max)break;s--}while(s>12);return s}
+async function schedImage(){
+  const cells=curCells(),notes=curNotes(),ds=days().slice().sort((a,b)=>a-b),ev=+S.cfg.ev||1;
+  const E=d=>{const c=cells[d]||[];if(c.some(x=>x.o==='e330'))return '15:30';if(c.some(x=>x.o==='e430'))return '16:30';return null};
+  const rows=[{lbl:'בוקר',hrs:'07:00–14:30',get:d=>isWork(d)?[(cells[d]||[]).find(x=>x.o==='m7')]:null},
+    {lbl:'בוקר',hrs:'08:30–'+(ds.map(E).filter(Boolean).every((v,i,a)=>v===a[0])&&ds.map(E).some(Boolean)?ds.map(E).find(Boolean):'15:30/16:30'),get:d=>isWork(d)?[(cells[d]||[]).find(x=>x.o==='m830')]:null,sub:(x,d)=>E(d)?'עד '+E(d):''}];
+  if(S.cfg.m10&&ds.some(d=>(cells[d]||[]).some(x=>x.o==='m10')))rows.push({lbl:'בוקר',hrs:'10:00–14:30',get:d=>isWork(d)?[(cells[d]||[]).find(x=>x.o==='m10')]:null});
+  for(let i=0;i<ev;i++)rows.push({lbl:'ערב',hrs:'15:30/16:30–22:00',get:d=>isWork(d)?[(cells[d]||[]).filter(x=>OPTS[x.o]&&OPTS[x.o].s==='e')[i]]:null,sub:x=>'מ'+OPTS[x.o].a});
+  if(msOn()&&ds.includes(6))rows.push({lbl:'מוצ״ש',hrs:'צאת שבת–22:30',get:d=>d===6?(cells[d]||[]).filter(x=>x.o==='mss'):null});
+  const hasN=ds.some(d=>String(notes[d]||'').trim());
+  try{await document.fonts.load('700 24px Rubik');await document.fonts.load('600 22px Assistant')}catch(e){}
+  const LW=210,CW=158,M=24,HH=150,RH=74,HR=64,NH=70,FH=96,n=ds.length;
+  const W=M*2+LW+CW*n,H=M+HH+HR+RH*rows.length+(hasN?NH:0)+FH;
+  const cv=document.createElement('canvas'),k=2;cv.width=W*k;cv.height=H*k;const c=cv.getContext('2d');c.scale(k,k);c.direction='rtl';c.textBaseline='middle';
+  c.fillStyle='#fff';c.fillRect(0,0,W,H);
+  const R=W-M,colX=i=>R-LW-CW*(i+1);
+  const logo=await loadImg(LOGO);if(logo){const lw=250,lh=lw*logo.height/logo.width;c.drawImage(logo,M,M+(HH-lh)/2-6,lw,lh)}
+  const tw=Math.min(560,W-M*2-280);c.fillStyle='#3d1c0e';c.fillRect(R-tw,M+30,tw,74);c.fillStyle='#fff';c.textAlign='center';
+  const title=`סידור עבודה ${short(addDays(S.wk,ds[0]))} עד ${short(addDays(S.wk,ds[n-1]))}`;fitText(c,title,tw-30,34,700);c.fillText(title,R-tw/2,M+67);
+  c.fillStyle='#f8d650';c.fillRect(M,M+HH-14,W-M*2,5);
+  let y=M+HH;
+  const line=(x1,y1,x2,y2)=>{c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke()};
+  c.fillStyle='#3d1c0e';c.fillRect(M,y,W-M*2,HR);c.fillStyle='#fff';c.font='700 24px Rubik, Assistant, Arial, sans-serif';
+  c.fillText('משמרת',R-LW/2,y+HR/2);
+  ds.forEach((d,i)=>{const x=colX(i)+CW/2;c.font='700 23px Rubik, Assistant, Arial, sans-serif';c.fillText(DAYS[d],x,y+HR/2-11);c.font='500 17px Rubik, Assistant, Arial, sans-serif';c.fillText(short(addDays(S.wk,d)),x,y+HR/2+15)});
+  y+=HR;
+  rows.forEach((r,ri)=>{
+    c.fillStyle=ri%2?'#fbf7f1':'#fff';c.fillRect(M,y,W-M*2,RH);
+    c.fillStyle='#f3e9dd';c.fillRect(R-LW,y,LW,RH);
+    c.fillStyle='#2b1d14';c.font='700 23px Rubik, Assistant, Arial, sans-serif';c.fillText(r.lbl,R-LW/2,y+RH/2-12);
+    c.font='500 18px Rubik, Assistant, Arial, sans-serif';c.save();c.direction='ltr';fitText(c,r.hrs,LW-16,18,500);c.fillText(r.hrs,R-LW/2,y+RH/2+14);c.restore();
+    ds.forEach((d,i)=>{const x0=colX(i),list=r.get(d);
+      if(list===null){c.fillStyle='#e8e2da';c.fillRect(x0,y,CW,RH);return}
+      const xs=list.filter(Boolean);if(!xs.length)return;
+      const nm=xs.map(x=>x.n||nameOf(x.e)).join(', ');c.fillStyle='#2b1d14';
+      const sub=r.sub&&xs.length===1?r.sub(xs[0],d):'';
+      fitText(c,nm,CW-14,23,600);c.fillText(nm,x0+CW/2,y+RH/2-(sub?11:0));
+      if(sub){c.fillStyle='#c0392b';c.font='600 18px Rubik, Assistant, Arial, sans-serif';c.fillText(sub,x0+CW/2,y+RH/2+16)}});
+    y+=RH});
+  if(hasN){c.fillStyle='#fff';c.fillRect(M,y,W-M*2,NH);c.fillStyle='#c0392b';c.font='700 22px Rubik, Assistant, Arial, sans-serif';c.fillText('הערות',R-LW/2,y+NH/2);
+    ds.forEach((d,i)=>{const t=String(notes[d]||'').trim();if(!t)return;fitText(c,t,CW-12,20,600);c.fillText(t,colX(i)+CW/2,y+NH/2)});y+=NH}
+  c.strokeStyle='#5b4636';c.lineWidth=1.5;const top=M+HH;
+  let yy=top;line(M,yy,W-M,yy);yy+=HR;line(M,yy,W-M,yy);rows.forEach(()=>{yy+=RH;line(M,yy,W-M,yy)});if(hasN){yy+=NH;line(M,yy,W-M,yy)}
+  line(M,top,M,y);line(R,top,R,y);line(R-LW,top,R-LW,y);ds.forEach((d,i)=>line(colX(i),top,colX(i),y));
+  const ft='שבוע טוב ועבודה נעימה 💛';c.font='700 26px Rubik, Assistant, Arial, sans-serif';const fw=c.measureText(ft).width+44;
+  c.fillStyle='#3d1c0e';c.fillRect(R-fw,y+24,fw,52);c.fillStyle='#fff';c.textAlign='center';c.fillText(ft,R-fw/2,y+50);
+  c.fillStyle='#75604f';c.font='500 16px Rubik, Assistant, Arial, sans-serif';c.textAlign='left';c.fillText('רונצ׳ · סניף הקריון',M,y+50);
+  return await new Promise(r=>cv.toBlob(r,'image/png'));
+}
+async function shareImage(){
+  S.msg='';S.ok='מכין תמונה…';render();
+  let b;try{b=await schedImage()}catch(e){S.ok='';S.msg='לא הצלחתי ליצור תמונה: '+e.message;render();return}
+  if(S.imgUrl)URL.revokeObjectURL(S.imgUrl);S.imgUrl=URL.createObjectURL(b);
+  const name=`סידור-עבודה-${short(S.wk).replace('.','-')}.png`,file=new File([b],name,{type:'image/png'});
+  const mobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  try{if(mobile&&navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file]});S.ok='';render();return}}catch(e){if(e&&e.name==='AbortError'){S.ok='';render();return}}
+  try{await navigator.clipboard.write([new ClipboardItem({'image/png':b})]);S.ok='התמונה הועתקה. פתח את וואטסאפ והדבק (Ctrl+V).'}catch(e){S.ok='התמונה מוכנה למטה. אפשר להוריד אותה או ללחוץ עליה בקליק ימני ולבחור "העתק תמונה".'}
+  render()}
+const imgPreview=()=>S.imgUrl&&S.imgWk===S.wk?`<div class="card" style="margin:0 0 16px"><div class="hd"><b>תמונת הסידור</b><span class="chips"><button class="x" data-act="imgDl">הורדה</button><button class="x ghost" data-act="imgClose">סגירה</button></span></div><img src="${S.imgUrl}" alt="סידור העבודה כתמונה" style="width:100%;height:auto;border:1px solid var(--line);border-radius:8px;background:#fff"></div>`:'';
+
 function saveCfg(p){const n={...S.cfg,...p};S.cfg=n;render();return run(()=>sb.from('settings').update({data:n,updated_at:new Date().toISOString()}).eq('id',1))}
 function cloneCells(){return JSON.parse(JSON.stringify((S.sched&&S.sched.cells)||{}))}
 function pubCells(){const c=cloneCells();Object.values(c).forEach(l=>l.forEach(x=>x.n=nameOf(x.e)));return c}
@@ -563,6 +629,7 @@ function backup(){const data={exported:new Date().toISOString(),settings:S.cfg,s
 document.addEventListener('input',e=>{const t=e.target;if(!t.id)return;S.form[t.id]=t.value;if(t.id==='note'&&!S.dirty){S.dirty=true}});
 document.addEventListener('change',e=>{const t=e.target;
   if(t.id==='lvReason'||t.id==='excWho'){S.form[t.id]=t.value;render();return}
+  if(t.dataset.dnote!==undefined){const nn={...((S.sched&&S.sched.notes)||{})};const v=t.value.trim();if(v)nn[t.dataset.dnote]=v;else delete nn[t.dataset.dnote];saveSched({notes:nn});return}
   if(t.dataset.add===undefined||!t.value)return;
   const d=t.dataset.add,[id,o]=t.value.split('|'),cells=cloneCells();(cells[d]=cells[d]||[]).push({e:id,o});saveSched({cells})});
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.target.id==='auPass'||e.target.id==='auEmail')&&!S.session){const b=document.querySelector('[data-act="login"],[data-act="signup"],[data-act="forgot"]');if(b)b.click()}});
@@ -586,11 +653,11 @@ document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-ac
   case 'setPass':{if((S.form.newPass||'').length<6){S.msg='לפחות 6 תווים';break}const {error}=await sb.auth.updateUser({password:S.form.newPass});if(error){S.msg=errMsg(error);break}S.recovery=false;S.form={};S.ok='הסיסמה עודכנה';break}
   case 'logout':await sb.auth.signOut();S.form={};S.auth='login';break;
   case 'reload':await loadAll();return;
-  case 'mode':S.mode=ds.v;S.modeSet=true;S.wk=ds.v==='mgr'?upcoming():openWeek();S.tgWk=null;subWeek();break;
+  case 'mode':S.mode=ds.v;S.modeSet=true;S.wk=openWeek();S.tgWk=null;subWeek();break;
   case 'tab':S.tab=ds.v;S.edit=null;break;
   case 'goSched':S.tab='sched';S.wk=ds.v;subWeek();break;
   case 'etab':S.etab=ds.v;S.cal=null;S.calSel=[];break;
-  case 'wk':S.wk=ds.n==='0'?(S.mode==='mgr'?upcoming():openWeek()):addDays(S.wk,7*ds.n);S.tgWk=null;subWeek();break;
+  case 'wk':S.wk=ds.n==='0'?openWeek():addDays(S.wk,7*ds.n);S.tgWk=null;subWeek();break;
   case 'editMe':S.edit=S.edit==='me'?null:'me';S.form.meName=undefined;S.form.mePhone=undefined;break;
   case 'saveMe':{const n=(S.form.meName??S.me.name).trim();if(n.length<2){S.msg='כתוב שם מלא';break}
     if(await run(()=>sb.from('profiles').update({name:n,phone:(S.form.mePhone??S.me.phone??'').trim()}).eq('id',S.uid),'הפרטים נשמרו'))S.edit=null;break}
@@ -633,16 +700,19 @@ document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-ac
     await run(()=>has?sb.from('unlocks').delete().eq('user_id',ds.e).eq('week',S.wk):sb.from('unlocks').insert({user_id:ds.e,week:S.wk}),has?'העריכה ננעלה שוב':'העובד יכול לערוך שוב את הזמינות לשבוע הזה');break}
   case 'hist':S.tab='hist';S.open={[ds.e]:true};break;
   case 'open':S.open[ds.e]=!S.open[ds.e];break;
+  case 'img':S.imgWk=S.wk;shareImage();return;
+  case 'imgDl':fetch(S.imgUrl).then(r=>r.blob()).then(b=>saveFile(`סידור-עבודה-${short(S.wk).replace('.','-')}.png`,b,'image/png'));return;
+  case 'imgClose':if(S.imgUrl)URL.revokeObjectURL(S.imgUrl);S.imgUrl=null;break;
   case 'xlsx':exportX();return;
   case 'backup':backup();return;
   case 'savePhone':await saveCfg({mgrPhone:(S.form.mgrPhone??'').trim()});S.ok='נשמר';break;
   case 'tg':{const t=S.tg[ds.e]=S.tg[ds.e]||{};t[ds.s]=Math.max(0,(t[ds.s]||0)+ +ds.n);break}
-  case 'tgAll':people().forEach(e=>{const p=(S.subs[e.id]&&S.subs[e.id].picks)||{};const c=s=>days().filter(d=>hasS(p,d,s)).length;S.tg[e.id]={m:c('m'),e:c('e'),x:c('x')}});break;
+  case 'tgAll':{let k=0;people().forEach(e=>{const p=(S.subs[e.id]&&S.subs[e.id].picks)||{};const c=s=>days().filter(d=>hasS(p,d,s)).length;S.tg[e.id]={m:c('m'),e:c('e'),x:c('x')};k+=c('m')+c('e')+c('x')});if(!k)S.msg='אין עדיין הגשות לשבוע הזה, אז אין מה למלא.';else S.ok='מולא לפי כל מה שהעובדים הגישו';break}
   case 'tgZero':S.tg={};S.ok='הכמויות אופסו';break;
-  case 'auto':{const r=auto();S.warn=r.warn;S.tab='sched';saveSched({cells:r.cells,targets:JSON.parse(JSON.stringify(S.tg))});window.scrollTo(0,0);return}
+  case 'auto':{if(!Object.values(S.tg).some(t=>(+t.m||0)+(+t.e||0)+(+t.x||0)>0)){S.msg='קבע קודם לכל עובד כמה משמרות לתת לו (או לחץ "כל מה שהגישו").';break}const r=auto();S.warn=r.warn;S.tab='sched';saveSched({cells:r.cells,targets:JSON.parse(JSON.stringify(S.tg))});window.scrollTo(0,0);return}
   case 'rm':{const cells=cloneCells();cells[ds.d]=(cells[ds.d]||[]).filter(x=>x.e!==ds.e);saveSched({cells});return}
   case 'pub':if(ds.v==='1'){const c=pubCells(),wk=S.wk;
-      if(await run(()=>sb.from('published_schedules').upsert({week:wk,cells:c,published_at:new Date().toISOString()})))await saveSched({published:true},'פורסם. העובדים רואים את הסידור.')}
+      if(await run(()=>sb.from('published_schedules').upsert({week:wk,cells:c,notes:(S.sched&&S.sched.notes)||{},published_at:new Date().toISOString()})))await saveSched({published:true},'פורסם. העובדים רואים את הסידור.')}
     else{const wk=S.wk;if(await run(()=>sb.from('published_schedules').delete().eq('week',wk)))await saveSched({published:false},'הפרסום בוטל')}break;
   case 'clear':if(!ds.v){S.confirm='clear';break}S.confirm=null;if(ds.v==='no')break;S.warn=[];saveSched({cells:{}},'הסידור נוקה');return;
   case 'copy':try{await navigator.clipboard.writeText(waText());S.ok='הועתק. הדבק בקבוצת העובדים.'}catch(e){S.msg='ההעתקה נחסמה בדפדפן הזה'}break;
