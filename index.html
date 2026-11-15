@@ -661,7 +661,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.target.id==='auPa
 const busy=new Set();
 document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-act]');if(!b||b.disabled)return;const a=b.dataset.act,ds=b.dataset;
   if(busy.has(a))return;
-  S.msg='';if(a!=='cald'&&a!=='calm')S.ok='';if(!['clear','toggleActive','role','reject'].includes(a))S.confirm=null;
+  S.msg='';if(a!=='cald'&&a!=='calm')S.ok='';if(!['clear','toggleActive','role','reject','delLeave','delAvail'].includes(a))S.confirm=null;
   const slow=['login','signup','forgot','setPass','submit','sendLeave','sendExc','decide','pub','saveMe','saveStaff','toggleActive','role','unlock'];
   if(slow.includes(a)){busy.add(a);b.disabled=true}
   try{switch(a){
