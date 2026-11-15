@@ -164,7 +164,9 @@ const dayOpts=d=>{d=+d;const o=[];if(isWork(d)){if(fri(d))o.push('mor');else{if(
 const mSlots=d=>fri(d)?['m7','m830']:['m7','m830',...(S.cfg.m10?['m10']:[])];
 const maxOff=()=>Math.max(0,+(S.cfg.maxOff??3));
 const offEx=wk=>!!((S.acct.offEx||{})[wk]);
-const offDays=(picks,leaveDates)=>S.cfg.days.map(Number).filter(d=>!pk(picks,d).length&&!leaveDates.has(addDays(S.wk,d)));
+const raw=(p,d)=>{const v=(p||{})[d];return Array.isArray(v)?v:(v?[v]:[])};
+const offDays=(picks,leaveDates)=>S.cfg.days.map(Number).filter(d=>raw(picks,d).length&&!pk(picks,d).length&&!leaveDates.has(addDays(S.wk,d)));
+const missingDays=(picks,leaveDates)=>days().filter(d=>!raw(picks,d).length&&!leaveDates.has(addDays(S.wk,d)));
 const TYPES=()=>[...(bakeOn()?['a']:[]),'m','e',...(msOn()?['x']:[])];
 const arr=v=>Array.isArray(v)?v.filter(o=>OPTS[o]):(OPTS[v]?[v]:[]);
 const pk=(p,d)=>arr((p||{})[d]);
@@ -182,6 +184,7 @@ function errMsg(e){const m=String((e&&(e.message||e.error_description))||e||'');
   if(/already registered|already been registered/i.test(m))return 'המייל הזה כבר רשום. אפשר להיכנס או לאפס סיסמה.';
   if(/Password should be at least/i.test(m))return 'הסיסמה צריכה להיות לפחות 6 תווים.';
   if(/Email not confirmed/i.test(m))return 'צריך לאשר את המייל לפני הכניסה. בדוק את תיבת הדואר.';
+  if(/missing day choice/i.test(m))return 'צריך לבחור לכל יום משמרת או "לא זמין" לפני השליחה.';
   if(/unavailable days/i.test(m))return 'סימנת יותר מדי ימים כלא זמין. לימים נוספים צריך להגיש בקשת חופש.';
   if(/rate limit|too many/i.test(m))return 'יותר מדי ניסיונות. נסה שוב בעוד כמה דקות.';
   if(/fetch|network|Failed to/i.test(m))return 'אין חיבור לשרת. בדוק את האינטרנט ונסה שוב.';
@@ -256,7 +259,7 @@ function live(on){if(chan){sb.removeChannel(chan);chan=null}if(on)chan=sb.channe
   setInterval(()=>{const k=openWeek()+isLockedWk(S.wk);if(k!==lockKey){lockKey=k;render()}},30000);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.session)reloadSoon()});
 })();
-function subWeek(){S.pick=null;S.dirty=false;S.form.note=undefined;S.warn=[];S.sent=null;syncWeek()}
+function subWeek(){S.showMissing=false;S.pick=null;S.dirty=false;S.form.note=undefined;S.warn=[];S.sent=null;syncWeek()}
 
 /* ---------- render ---------- */
 function render(){
@@ -325,12 +328,13 @@ function empAvail(){
   const prevW=(S.avail.weeks||{})[addDays(S.wk,-7)];
   if(ed&&prevW&&Object.keys(prevW.picks||{}).length)h+=`<p style="margin:0 0 12px"><button data-act="copyPrev">העתקת הזמינות מהשבוע הקודם</button></p>`;
   const myLv=myReqs().filter(r=>r.st==='pending'||r.st==='approved');
-  const lvSet=new Set(myLv.flatMap(r=>r.dates)),off=offDays(picks,lvSet),mo=maxOff();
+  const lvSet=new Set(myLv.flatMap(r=>r.dates)),off=offDays(picks,lvSet),mo=maxOff(),miss=missingDays(picks,lvSet);
+  if(ed&&miss.length)h+=`<div class="${S.showMissing?'warn':'note'}" style="margin-bottom:12px">צריך לבחור לכל יום: משמרת או "לא זמין". ${miss.length===days().length?'עוד לא בחרת אף יום.':`חסר: <b>${miss.map(d=>DAYS[d]).join(', ')}</b>.`}</div>`;
   if(ed&&offEx(S.wk))h+=`<div class="good" style="margin-bottom:12px">יש לך אישור מיוחד מהמנהל לשבוע הזה: אפשר לסמן כמה ימים שצריך כלא זמין.</div>`;
   else if(ed)h+=`<div class="${off.length>mo?'warn':'note'}" style="margin-bottom:12px">${off.length>mo?`<b>סימנת ${off.length} ימים כלא זמין, והמקסימום הוא ${mo}.</b> סמן עוד משמרות, או הגש <button class="x" data-act="etab" data-v="lv">בקשת חופש</button> לימים שאתה לא יכול, או בקש מהמנהל אישור מיוחד.`:`ימים לא זמינים: <b>${off.length} מתוך ${mo}</b> מותרים. לימים נוספים צריך להגיש בקשת חופש.`}</div>`;
-  const chOf=d=>['',...dayOpts(d)];
-  h+='<div class="grid">'+ds.map(d=>{const lr=myLv.find(r=>r.dates.includes(addDays(S.wk,d)));return `<div class="day"><div class="dh"><b>${DAYS[d]}</b><span>${dDate(S.wk,d)}</span></div>${lr?`<div class="note" style="padding:6px 10px;margin-bottom:8px;font-size:14px">יש לך בקשת חופש ליום הזה (${STN[lr.st]})</div>`:''}<div class="chips">`+
-    chOf(d).map(o=>{const on=o?pk(picks,d).includes(o):!pk(picks,d).length,s=o?OPTS[o].s:'n';return `<button class="chip ${s} ${on?'on':''}" data-act="pick" data-d="${d}" data-o="${o}" aria-pressed="${on}" ${ed?'':'disabled'}>${o?sName(s)+' <span dir="ltr">'+tLabel(o,fri(d)?d:null)+'</span>':'לא זמין'}</button>`}).join('')+'</div></div>'}).join('')+'</div>';
+  const chOf=d=>['off',...dayOpts(d)];
+  h+='<div class="grid">'+ds.map(d=>{const lr=myLv.find(r=>r.dates.includes(addDays(S.wk,d)));return `<div class="day" ${ed&&S.showMissing&&miss.includes(d)?'style="border:2px solid var(--bad)"':''}><div class="dh"><b>${DAYS[d]}</b><span>${dDate(S.wk,d)}</span></div>${lr?`<div class="note" style="padding:6px 10px;margin-bottom:8px;font-size:14px">יש לך בקשת חופש ליום הזה (${STN[lr.st]})</div>`:''}<div class="chips">`+
+    chOf(d).map(o=>{const on=o==='off'?raw(picks,d).includes('off'):pk(picks,d).includes(o),s=o==='off'?'n':OPTS[o].s;return `<button class="chip ${s} ${on?'on':''}" data-act="pick" data-d="${d}" data-o="${o}" aria-pressed="${on}" ${ed?'':'disabled'}>${o!=='off'?sName(s)+' <span dir="ltr">'+tLabel(o,fri(d)?d:null)+'</span>':'לא זמין'}</button>`}).join('')+(ed&&S.showMissing&&miss.includes(d)?'<div class="flag" style="margin-top:8px">צריך לבחור משמרת או "לא זמין"</div>':'')+'</div></div>'}).join('')+'</div>';
   const note=S.form.note!==undefined?S.form.note:(x&&x.note)||'';
   h+=`<label style="margin-top:16px">הערה למנהל (לא חובה)<textarea id="note" ${ed?'':'disabled'} placeholder="למשל: ביום שלישי אני יכול רק עד 14:00">${esc(note)}</textarea></label></div>`;
   const cnt=s=>ds.filter(d=>hasS(picks,d,s)).length;
@@ -679,13 +683,13 @@ document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-ac
   case 'saveMe':{const n=(S.form.meName??S.me.name).trim();if(n.length<2){S.msg='כתוב שם מלא';break}
     if(await run(()=>sb.from('profiles').update({name:n,phone:(S.form.mePhone??S.me.phone??'').trim()}).eq('id',S.uid),'הפרטים נשמרו'))S.edit=null;break}
   case 'copyPrev':{const p=(S.avail.weeks||{})[addDays(S.wk,-7)];if(!p||!canEditWk(S.wk))break;S.pick=JSON.parse(JSON.stringify(p.picks||{}));S.dirty=true;S.ok='הועתק. בדוק ושלח.';break}
-  case 'pick':{if(!canEditWk(S.wk))break;const p={...getPicks()};if(!ds.o)delete p[ds.d];else{const c=pk(p,ds.d);p[ds.d]=c.includes(ds.o)?c.filter(x=>x!==ds.o):[...c,ds.o];if(!p[ds.d].length)delete p[ds.d]}S.pick=p;S.dirty=true;break}
+  case 'pick':{if(!canEditWk(S.wk))break;const p={...getPicks()};if(ds.o==='off'){if(raw(p,ds.d).includes('off'))delete p[ds.d];else p[ds.d]=['off']}else{const c=pk(p,ds.d);p[ds.d]=c.includes(ds.o)?c.filter(x=>x!==ds.o):[...c,ds.o];if(!p[ds.d].length)delete p[ds.d]}S.pick=p;S.dirty=true;break}
   case 'submit':{if(!canEditWk(S.wk)){S.msg='ההגשה לשבוע הזה כבר נסגרה.';break}
-    {const lv=new Set(myReqs().filter(r=>r.st==='pending'||r.st==='approved').flatMap(r=>r.dates)),off=offDays(getPicks(),lv);if(off.length>maxOff()&&!offEx(S.wk)){S.msg=`אפשר לסמן עד ${maxOff()} ימים כלא זמין (סימנת ${off.length}). לימים נוספים צריך להגיש בקשת חופש, או לבקש מהמנהל אישור מיוחד.`;break}}
+    {const lv=new Set(myReqs().filter(r=>r.st==='pending'||r.st==='approved').flatMap(r=>r.dates)),off=offDays(getPicks(),lv),miss=missingDays(getPicks(),lv);if(miss.length){S.showMissing=true;S.msg=`אי אפשר לשלוח עדיין: צריך לבחור לכל יום משמרת או "לא זמין". חסר: ${miss.map(d=>DAYS[d]).join(', ')}.`;break}if(off.length>maxOff()&&!offEx(S.wk)){S.msg=`אפשר לסמן עד ${maxOff()} ימים כלא זמין (סימנת ${off.length}). לימים נוספים צריך להגיש בקשת חופש, או לבקש מהמנהל אישור מיוחד.`;break}}
     const picks={...getPicks()},prev=(S.avail.weeks||{})[S.wk],note=S.form.note!==undefined?S.form.note:(prev&&prev.note)||'';
     if(prev&&JSON.stringify(prev.picks||{})===JSON.stringify(picks)&&(prev.note||'')===note){S.dirty=false;S.pick=null;S.ok='אין שינויים לשמור';break}
     const wk=S.wk,now=Date.now();
-    if(await run(()=>sb.from('availability').upsert({user_id:S.uid,week:wk,picks,note},{onConflict:'user_id,week'}))){S.pick=null;S.dirty=false;S.form.note=undefined;S.sent={kind:prev?'upd':'sub',wk,t:now,prev:prev&&prev.picks,now:picks};window.scrollTo(0,0)}
+    if(await run(()=>sb.from('availability').upsert({user_id:S.uid,week:wk,picks,note},{onConflict:'user_id,week'}))){S.showMissing=false;S.pick=null;S.dirty=false;S.form.note=undefined;S.sent={kind:prev?'upd':'sub',wk,t:now,prev:prev&&prev.picks,now:picks};window.scrollTo(0,0)}
     break}
   case 'calm':{const f=parse(S.cal);S.cal=ymd(new Date(f.getFullYear(),f.getMonth()+ +ds.n,1));break}
   case 'cald':{const k=ds.k;S.calSel=S.calSel.includes(k)?S.calSel.filter(x=>x!==k):[...S.calSel,k].sort();break}
