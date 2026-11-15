@@ -126,10 +126,10 @@ const BR='RONCH';
 const DAYS=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
 const DS=['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
 const MONTHS=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-const OPTS={m7:{s:'m',a:'07:00',b:'14:30'},m830:{s:'m',a:'08:30',b:null},m10:{s:'m',a:'10:00',b:'14:30'},e330:{s:'e',a:'15:30',b:'22:00'},e430:{s:'e',a:'16:30',b:'22:00'},mss:{s:'x',a:'צאת שבת',b:'22:30'},a630:{s:'a',a:'06:30',b:'14:30'}};
+const OPTS={m7:{s:'m',a:'07:00',b:'14:30'},m830:{s:'m',a:'08:30',b:null},m10:{s:'m',a:'10:00',b:'14:30'},e330:{s:'e',a:'15:30',b:'22:00'},e430:{s:'e',a:'16:30',b:'22:00'},mss:{s:'x',a:'צאת שבת',b:'22:30'},a630:{s:'a',a:'06:30',b:'14:30'},mor:{s:'m',a:'',b:''}};
 const REASONS={abroad:'חופשה בחו״ל',family:'אירוע משפחתי',errands:'סידורים אישיים',other:'סיבה אישית אחרת'};
 const STN={pending:'ממתין לאישור',approved:'אושר',rejected:'נדחה',cancelled:'בוטל'};
-const DEF={days:[0,1,2,3,4,5],ev:2,m10:true,ms:true,msNeed:2,bake:true,mgrPhone:''};
+const DEF={days:[0,1,2,3,4,5],ev:2,m10:true,ms:true,msNeed:2,bake:true,friShort:true,maxOff:3,mgrPhone:''};
 const LEAD=14;
 const S={uid:null,owner:false,mode:'emp',cfg:DEF,session:null,auth:'login',recovery:false,
   me:undefined,acct:{},avail:{},leave:{},pub:null,pubAll:{},schedAll:{},
@@ -159,12 +159,18 @@ const isWork=d=>S.cfg.days.map(Number).includes(+d);
 const msOn=()=>S.cfg.ms!==false;
 const days=()=>{const a=S.cfg.days.map(Number);if(msOn()&&!a.includes(6))a.push(6);return a.sort((x,y)=>x-y)};
 const bakeOn=()=>S.cfg.bake!==false;
+const fri=d=>+d===5&&S.cfg.friShort!==false;
+const dayOpts=d=>{d=+d;const o=[];if(isWork(d)){if(fri(d))o.push('mor');else{if(bakeOn())o.push('a630');o.push('mor','e330','e430')}}if(d===6&&msOn())o.push('mss');return o};
+const mSlots=d=>fri(d)?['m7','m830']:['m7','m830',...(S.cfg.m10?['m10']:[])];
+const maxOff=()=>Math.max(0,+(S.cfg.maxOff??3));
+const offEx=wk=>!!((S.acct.offEx||{})[wk]);
+const offDays=(picks,leaveDates)=>S.cfg.days.map(Number).filter(d=>!pk(picks,d).length&&!leaveDates.has(addDays(S.wk,d)));
 const TYPES=()=>[...(bakeOn()?['a']:[]),'m','e',...(msOn()?['x']:[])];
 const arr=v=>Array.isArray(v)?v.filter(o=>OPTS[o]):(OPTS[v]?[v]:[]);
 const pk=(p,d)=>arr((p||{})[d]);
 const hasS=(p,d,s)=>pk(p,d).some(o=>OPTS[o].s===s);
 const sName=s=>s==='m'?'בוקר':s==='x'?'מוצ״ש':s==='a'?'אפייה':'ערב';
-const pickTxt=os=>os.map(o=>sName(OPTS[o].s)+' '+tLabel(o)).join(', ');
+const pickTxt=os=>os.map(o=>o==='mor'?'בוקר':sName(OPTS[o].s)+' '+tLabel(o)).join(', ');
 function ranges(ds){const s=[...ds].sort(),out=[];s.forEach(k=>{const l=out[out.length-1];if(l&&addDays(l[1],1)===k)l[1]=k;else out.push([k,k])});return out.map(([a,b])=>a===b?fmtD(a):fmtD(a)+' עד '+fmtD(b)).join(', ')}
 function phoneIntl(p){let d=String(p||'').replace(/\D/g,'');if(!d)return '';if(d.startsWith('0'))d='972'+d.slice(1);return d}
 const waHref=(p,t)=>'https://wa.me/'+phoneIntl(p)+'?text='+encodeURIComponent(t);
@@ -176,6 +182,7 @@ function errMsg(e){const m=String((e&&(e.message||e.error_description))||e||'');
   if(/already registered|already been registered/i.test(m))return 'המייל הזה כבר רשום. אפשר להיכנס או לאפס סיסמה.';
   if(/Password should be at least/i.test(m))return 'הסיסמה צריכה להיות לפחות 6 תווים.';
   if(/Email not confirmed/i.test(m))return 'צריך לאשר את המייל לפני הכניסה. בדוק את תיבת הדואר.';
+  if(/unavailable days/i.test(m))return 'סימנת יותר מדי ימים כלא זמין. לימים נוספים צריך להגיש בקשת חופש.';
   if(/rate limit|too many/i.test(m))return 'יותר מדי ניסיונות. נסה שוב בעוד כמה דקות.';
   if(/fetch|network|Failed to/i.test(m))return 'אין חיבור לשרת. בדוק את האינטרנט ונסה שוב.';
   return 'הפעולה נכשלה: '+m}
@@ -201,7 +208,7 @@ async function loadAll(){
   if(!S.session){render();return}
   const seq=++loadSeq;
   try{
-    const [pr,st,av,hi,ul,lv,ps]=await Promise.all([fetchAll('profiles'),sb.from('settings').select('data').eq('id',1).maybeSingle(),fetchAll('availability'),fetchAll('availability_history','id'),fetchAll('unlocks'),fetchAll('leave_requests'),fetchAll('published_schedules')]);
+    const [pr,st,av,hi,ul,lv,ps,ox]=await Promise.all([fetchAll('profiles'),sb.from('settings').select('data').eq('id',1).maybeSingle(),fetchAll('availability'),fetchAll('availability_history','id'),fetchAll('unlocks'),fetchAll('leave_requests'),fetchAll('published_schedules'),fetchAll('off_exempt').catch(()=>[])]);
     if(st.error)throw st.error;
     const me=pr.find(p=>p.id===S.uid);
     let sc=[],mst=null;
@@ -215,6 +222,7 @@ async function loadAll(){
     S.staff=pr.map(p=>({id:p.id,name:p.name,phone:p.phone,role:p.role,approved:p.approved!==false,t:ms(p.created_at)})).sort((a,b)=>String(a.name).localeCompare(String(b.name),'he'));
     const A={};pr.forEach(p=>A[p.id]={active:p.active,approved:p.approved!==false,role:p.role,unlock:{},leave:{}});
     ul.forEach(u=>{(A[u.user_id]=A[u.user_id]||{unlock:{},leave:{}}).unlock[u.week]=true});
+    ox.forEach(u=>{const a=(A[u.user_id]=A[u.user_id]||{unlock:{},leave:{}});(a.offEx=a.offEx||{})[u.week]=true});
     lv.forEach(r=>{if(r.status==='approved'||r.status==='rejected')(A[r.user_id]=A[r.user_id]||{unlock:{},leave:{}}).leave[r.id]={st:r.status,note:r.manager_note,t:ms(r.decided_at)}});
     S.accts=A;
     const H={};hi.forEach(h=>{const k=h.user_id+'|'+h.week;(H[k]=H[k]||[]).push({t:ms(h.created_at),picks:h.picks,note:h.note})});
@@ -317,9 +325,12 @@ function empAvail(){
   const prevW=(S.avail.weeks||{})[addDays(S.wk,-7)];
   if(ed&&prevW&&Object.keys(prevW.picks||{}).length)h+=`<p style="margin:0 0 12px"><button data-act="copyPrev">העתקת הזמינות מהשבוע הקודם</button></p>`;
   const myLv=myReqs().filter(r=>r.st==='pending'||r.st==='approved');
-  const chOf=d=>['',...(isWork(d)?[...(bakeOn()?['a630']:[]),'m7','m830',...(S.cfg.m10?['m10']:[]),'e330','e430']:[]),...(d===6&&msOn()?['mss']:[])];
+  const lvSet=new Set(myLv.flatMap(r=>r.dates)),off=offDays(picks,lvSet),mo=maxOff();
+  if(ed&&offEx(S.wk))h+=`<div class="good" style="margin-bottom:12px">יש לך אישור מיוחד מהמנהל לשבוע הזה: אפשר לסמן כמה ימים שצריך כלא זמין.</div>`;
+  else if(ed)h+=`<div class="${off.length>mo?'warn':'note'}" style="margin-bottom:12px">${off.length>mo?`<b>סימנת ${off.length} ימים כלא זמין, והמקסימום הוא ${mo}.</b> סמן עוד משמרות, או הגש <button class="x" data-act="etab" data-v="lv">בקשת חופש</button> לימים שאתה לא יכול, או בקש מהמנהל אישור מיוחד.`:`ימים לא זמינים: <b>${off.length} מתוך ${mo}</b> מותרים. לימים נוספים צריך להגיש בקשת חופש.`}</div>`;
+  const chOf=d=>['',...dayOpts(d)];
   h+='<div class="grid">'+ds.map(d=>{const lr=myLv.find(r=>r.dates.includes(addDays(S.wk,d)));return `<div class="day"><div class="dh"><b>${DAYS[d]}</b><span>${dDate(S.wk,d)}</span></div>${lr?`<div class="note" style="padding:6px 10px;margin-bottom:8px;font-size:14px">יש לך בקשת חופש ליום הזה (${STN[lr.st]})</div>`:''}<div class="chips">`+
-    chOf(d).map(o=>{const on=o?pk(picks,d).includes(o):!pk(picks,d).length,s=o?OPTS[o].s:'n';return `<button class="chip ${s} ${on?'on':''}" data-act="pick" data-d="${d}" data-o="${o}" aria-pressed="${on}" ${ed?'':'disabled'}>${o?sName(s)+' <span dir="ltr">'+tLabel(o)+'</span>':'לא זמין'}</button>`}).join('')+'</div></div>'}).join('')+'</div>';
+    chOf(d).map(o=>{const on=o?pk(picks,d).includes(o):!pk(picks,d).length,s=o?OPTS[o].s:'n';return `<button class="chip ${s} ${on?'on':''}" data-act="pick" data-d="${d}" data-o="${o}" aria-pressed="${on}" ${ed?'':'disabled'}>${o?sName(s)+' <span dir="ltr">'+tLabel(o,fri(d)?d:null)+'</span>':'לא זמין'}</button>`}).join('')+'</div></div>'}).join('')+'</div>';
   const note=S.form.note!==undefined?S.form.note:(x&&x.note)||'';
   h+=`<label style="margin-top:16px">הערה למנהל (לא חובה)<textarea id="note" ${ed?'':'disabled'} placeholder="למשל: ביום שלישי אני יכול רק עד 14:00">${esc(note)}</textarea></label></div>`;
   const cnt=s=>ds.filter(d=>hasS(picks,d,s)).length;
@@ -388,7 +399,7 @@ function subsTab(){
   h+=P.map(e=>{const sub=S.subs[e.id],p=(sub&&sub.picks)||{};
     const has=s=>ds.filter(d=>hasS(p,d,s)).length;
     const tg=S.tg[e.id]||{};
-    const tags=ds.flatMap(d=>pk(p,d).map(o=>`<span class="tag ${OPTS[o].s}">${DAYS[d]} · <span dir="ltr">${tLabel(o)}</span></span>`)).join(' ');
+    const tags=ds.flatMap(d=>pk(p,d).map(o=>`<span class="tag ${OPTS[o].s}">${DAYS[d]} · <span dir="ltr">${o==='mor'?'בוקר':tLabel(o,fri(d)?d:null)}</span></span>`)).join(' ');
     const st=s=>`<div class="step"><span>${sName(s)}</span><button data-act="tg" data-e="${e.id}" data-s="${s}" data-n="-1" aria-label="פחות">−</button><output>${tg[s]||0}</output><button data-act="tg" data-e="${e.id}" data-s="${s}" data-n="1" aria-label="יותר" ${(tg[s]||0)>=has(s)?'disabled':''}>+</button><span class="mute">מתוך ${has(s)}</span></div>`;
     return `<div class="card"><div class="hd"><b>${esc(e.name)}</b><span class="mute">${sub?'הגיש '+has('m')+' ימי בוקר, '+has('e')+' ימי ערב'+(has('x')?', מוצ״ש':''):'לא הגיש'}</span></div>
       
@@ -399,7 +410,7 @@ function subsTab(){
 function curCells(){return (S.mode==='mgr'?(S.sched&&S.sched.cells):(S.pub&&S.pub.cells))||{}}
 const cellsOf=d=>curCells()[d]||[];
 function end830(d){const c=cellsOf(d);if(c.some(x=>x.o==='e330'))return '15:30';if(c.some(x=>x.o==='e430'))return '16:30';return null}
-function tLabel(o,d){const x=OPTS[o];if(!x)return '';if(o==='mss')return 'צאת שבת–22:30';const b=o==='m830'?(d==null?'15:30/16:30':(end830(d)||'15:30/16:30')):x.b;return x.a+'–'+b}
+function tLabel(o,d){const x=OPTS[o];if(!x)return '';if(o==='mor')return '';if(o==='mss')return 'צאת שבת–22:30';if(d!=null&&fri(d)&&(o==='m7'||o==='m830'))return x.a+'–15:00';const b=o==='m830'?(d==null?'15:30/16:30':(end830(d)||'15:30/16:30')):x.b;return x.a+'–'+b}
 function board(edit,meId){
   const ds=days(),ev=+S.cfg.ev||1,ms=['m7','m830',...(S.cfg.m10?['m10']:[])];
   return '<div class="grid">'+ds.map(d=>{const c=cellsOf(d);
@@ -408,7 +419,7 @@ function board(edit,meId){
     let h=`<div class="day"><div class="dh"><b>${DAYS[d]}</b><span>${dDate(S.wk,d)}</span></div>`,miss=0;
     const multi=(s,need,lbl)=>{const l=c.filter(y=>OPTS[y.o]&&OPTS[y.o].s===s);h+=`<span class="sec ${s}">${lbl}</span>`;l.forEach(x=>{h+=row(x.o,x)});
       if(edit&&l.length<need)h+=row(s,null,addOpts(d,s));if(!edit&&!l.length)h+='<div class="slot"><span class="t">—</span><span class="mute">אין</span><span></span></div>';miss+=Math.max(0,need-l.length)};
-    if(isWork(d)){if(bakeOn()){h+='<span class="sec a">אפייה</span>';const ax=c.find(y=>y.o==='a630');h+=row('a630',ax,edit?addOpts(d,'a630'):'');if(!ax)miss++;h+='<br>'}h+='<span class="sec m">בוקר</span>';
+    if(isWork(d)&&fri(d)){h+='<span class="sec m">בוקר (שישי)</span>';['m7','m830'].forEach(o=>{const x=c.find(y=>y.o===o);h+=row(o,x,edit?addOpts(d,o):'');if(!x)miss++})}else if(isWork(d)){if(bakeOn()){h+='<span class="sec a">אפייה</span>';const ax=c.find(y=>y.o==='a630');h+=row('a630',ax,edit?addOpts(d,'a630'):'');if(!ax)miss++;h+='<br>'}h+='<span class="sec m">בוקר</span>';
       ms.forEach(o=>{const x=c.find(y=>y.o===o);if(!x&&!edit&&o==='m10')return;h+=row(o,x,edit?addOpts(d,o):'')});
       miss+=(c.find(y=>y.o==='m7')?0:1)+(c.find(y=>y.o==='m830')?0:1);h+='<br>';multi('e',ev,'ערב')}
     if(d===6&&msOn()){if(isWork(d))h+='<br>';multi('x',+S.cfg.msNeed||1,'מוצאי שבת')}
@@ -430,7 +441,7 @@ function unpubDirty(wk){const s=S.schedAll[wk],p=S.pubAll[wk];return !!(s&&s.pub
 function leaveOn(k){return allReqs().filter(r=>r.st==='approved'&&r.dates.includes(k)).map(r=>nameOf(r.uid))}
 function addOpts(d,o){
   const c=cellsOf(d),busy=new Set(c.map(x=>x.e));
-  if(o==='x')o='mss';const isE=o==='e',P=e=>pk(S.subs[e.id]&&S.subs[e.id].picks,d),fits=e=>isE?P(e).some(x=>OPTS[x].s==='e'):P(e).includes(o);
+  if(o==='x')o='mss';const isE=o==='e',P=e=>pk(S.subs[e.id]&&S.subs[e.id].picks,d),fits=e=>isE?P(e).some(x=>OPTS[x].s==='e'):(P(e).includes(o)||(OPTS[o]&&OPTS[o].s==='m'&&P(e).includes('mor')));
   const k=addDays(S.wk,d),free=people().filter(e=>!busy.has(e.id)&&!onLeave(e.id,k)),a=free.filter(fits),b=free.filter(e=>!fits(e));
   const one=(e,off)=>{if(!isE)return `<option value="${e.id}|${o}">${esc(e.name)}${off?' (לא הגיש)':''}</option>`;
     if(!off)return P(e).filter(x=>OPTS[x].s==='e').map(x=>`<option value="${e.id}|${x}">${esc(e.name)} · ${OPTS[x].a}</option>`).join('');
@@ -481,7 +492,7 @@ function staffTab(){
     <div class="mute" style="font-size:14px">נרשם ${fmtT(s.t)} · הגיש ב-${wks} שבועות</div>
     ${ed?`<label>שם<input id="ed_name" value="${esc(f.ed_name??s.name)}"></label><label>טלפון<input id="ed_phone" inputmode="tel" value="${esc(f.ed_phone??(s.phone||''))}"></label><div class="chips"><button class="pri" data-act="saveStaff" data-e="${s.id}">שמירה</button><button data-act="editStaff" data-e="">ביטול</button></div>`:
     `<div class="chips"><button data-act="editStaff" data-e="${s.id}">עריכה</button>
-    ${active(s)?`<button data-act="unlock" data-e="${s.id}" ${lk?'':'disabled'}>${ul?'נעילה מחדש':'פתיחת עריכה'} לשבוע ${short(S.wk)}</button>`:''}
+    ${active(s)?`<button data-act="unlock" data-e="${s.id}" ${lk?'':'disabled'}>${ul?'נעילה מחדש':'פתיחת עריכה'} לשבוע ${short(S.wk)}</button><button data-act="offEx" data-e="${s.id}">${(a.offEx||{})[S.wk]?'ביטול אישור מיוחד':'אישור מיוחד: יותר ימים לא זמינים'} לשבוע ${short(S.wk)}</button>`:''}
     <button data-act="hist" data-e="${s.id}">היסטוריה</button>
     ${s.id!==S.uid?`<button data-act="role" data-e="${s.id}">${S.confirm==='role_'+s.id?'בטוח? לחץ שוב':s.role==='manager'?'הסרת הרשאת מנהל':'מתן הרשאת מנהל'}</button>`:''}
     ${s.id===S.uid?'':`<button class="danger" data-act="toggleActive" data-e="${s.id}">`}${s.id===S.uid?'':`${S.confirm==='act_'+s.id?'בטוח? לחץ שוב':active(s)?'השבתה':'הפעלה מחדש'}</button>`}</div>`}</div>`};
@@ -507,7 +518,8 @@ function histTab(){
 function setTab(){
   const c=S.cfg;
   return `<h2>ימי עבודה</h2><div class="chips" style="margin-bottom:22px">${DAYS.map((n,i)=>`<button class="chip m ${c.days.map(Number).includes(i)?'on':''}" data-act="day" data-d="${i}">${n}</button>`).join('')}</div>
-  <h2>משמרות</h2><div class="steps" style="margin-bottom:10px"><div class="step"><span>עובדים בערב</span><button data-act="ev" data-n="-1">−</button><output>${c.ev}</output><button data-act="ev" data-n="1">+</button></div></div>
+  <h2>משמרות</h2><div class="steps" style="margin-bottom:10px"><div class="step"><span>מקסימום ימים "לא זמין" בשבוע</span><button data-act="maxOff" data-n="-1">−</button><output>${maxOff()}</output><button data-act="maxOff" data-n="1">+</button></div></div><div class="steps" style="margin-bottom:10px"><div class="step"><span>עובדים בערב</span><button data-act="ev" data-n="-1">−</button><output>${c.ev}</output><button data-act="ev" data-n="1">+</button></div></div>
+  <p style="margin:0 0 12px"><button class="chip m ${S.cfg.friShort!==false?'on':''}" data-act="friT">שישי מקוצר: 07:00–15:00 ו־08:30–15:00 בלבד ${S.cfg.friShort!==false?'פעיל':'כבוי'}</button></p>
   <p style="margin:0 0 12px"><button class="chip a ${bakeOn()?'on':''}" data-act="bakeT">אפייה 06:30–14:30 ${bakeOn()?'פעיל':'כבוי'}</button></p>
   <p style="margin:0 0 12px"><button class="chip x ${msOn()?'on':''}" data-act="msT">מוצ״ש (צאת שבת–22:30) ${msOn()?'פעיל':'כבוי'}</button></p>
   ${msOn()?`<div class="steps" style="margin-bottom:12px"><div class="step"><span>עובדים במוצ״ש</span><button data-act="msN" data-n="-1">−</button><output>${+c.msNeed||1}</output><button data-act="msN" data-n="1">+</button></div></div>`:''}
@@ -523,7 +535,7 @@ function auto(){
   const P=id=>S.subs[id].picks||{};
   const load=(d,s)=>cells[d].filter(x=>OPTS[x.o].s===s).length;
   const ev2=(id,d)=>(cells[d]||[]).some(x=>x.e===id&&OPTS[x.o].s==='e'),mo2=(id,d)=>(cells[d]||[]).some(x=>x.e===id&&(x.o==='m7'||x.o==='m830'||x.o==='a630'));
-  const pick=(id,d,s)=>{const c=cells[d];if(c.some(x=>x.e===id))return null;if(onLeave(id,addDays(S.wk,d)))return null;const os=pk(P(id),d).filter(o=>OPTS[o].s===s);if(s==='e')return load(d,'e')<ev&&os.length?os[0]:null;if(s==='x')return load(d,'x')<(+S.cfg.msNeed||1)&&os.length?os[0]:null;if(!isWork(d))return null;return os.find(o=>!c.some(x=>x.o===o))||null};
+  const pick=(id,d,s)=>{const c=cells[d];if(c.some(x=>x.e===id))return null;if(onLeave(id,addDays(S.wk,d)))return null;if(s==='m'){if(!isWork(d))return null;const w=pk(P(id),d);return mSlots(d).find(o=>!c.some(x=>x.o===o)&&(w.includes('mor')||w.includes(o)))||null}const os=pk(P(id),d).filter(o=>OPTS[o].s===s&&dayOpts(d).includes(o));if(s==='e')return load(d,'e')<ev&&os.length?os[0]:null;if(s==='x')return load(d,'x')<(+S.cfg.msNeed||1)&&os.length?os[0]:null;if(!isWork(d))return null;return os.find(o=>!c.some(x=>x.o===o))||null};
   const room=(id,s)=>ds.filter(d=>pick(id,d,s)).length-need[id][s];
   for(let go=true;go;){go=false;
     const order=[];ids.forEach(id=>TY.forEach(s=>{if(need[id][s]>0)order.push([id,s])}));
@@ -543,10 +555,11 @@ function fitText(c,t,max,size,weight){let s=size;do{c.font=`${weight} ${s}px Rub
 async function schedImage(){
   const cells=curCells(),notes=curNotes(),ds=days().slice().sort((a,b)=>a-b),ev=+S.cfg.ev||1;
   const E=d=>{const c=cells[d]||[];if(c.some(x=>x.o==='e330'))return '15:30';if(c.some(x=>x.o==='e430'))return '16:30';return null};
-  const rows=[...(bakeOn()?[{lbl:'אפייה',hrs:'06:30–14:30',get:d=>isWork(d)?[(cells[d]||[]).find(x=>x.o==='a630')]:null}]:[]),{lbl:'בוקר',hrs:'07:00–14:30',get:d=>isWork(d)?[(cells[d]||[]).find(x=>x.o==='m7')]:null},
-    {lbl:'בוקר',hrs:'08:30–'+(ds.map(E).filter(Boolean).every((v,i,a)=>v===a[0])&&ds.map(E).some(Boolean)?ds.map(E).find(Boolean):'15:30/16:30'),get:d=>isWork(d)?[(cells[d]||[]).find(x=>x.o==='m830')]:null,sub:(x,d)=>E(d)?'עד '+E(d):''}];
-  if(S.cfg.m10&&ds.some(d=>(cells[d]||[]).some(x=>x.o==='m10')))rows.push({lbl:'בוקר',hrs:'10:00–14:30',get:d=>isWork(d)?[(cells[d]||[]).find(x=>x.o==='m10')]:null});
-  for(let i=0;i<ev;i++)rows.push({lbl:'ערב',hrs:'15:30/16:30–22:00',get:d=>isWork(d)?[(cells[d]||[]).filter(x=>OPTS[x.o]&&OPTS[x.o].s==='e')[i]]:null,sub:x=>'מ'+OPTS[x.o].a});
+  const WK=d=>isWork(d)&&!fri(d);
+  const rows=[...(bakeOn()?[{lbl:'אפייה',hrs:'06:30–14:30',get:d=>WK(d)?[(cells[d]||[]).find(x=>x.o==='a630')]:null}]:[]),{lbl:'בוקר',hrs:'07:00–14:30',get:d=>isWork(d)?[(cells[d]||[]).find(x=>x.o==='m7')]:null,sub:(x,d)=>fri(d)?'עד 15:00':''},
+    {lbl:'בוקר',hrs:'08:30–'+(ds.map(E).filter(Boolean).every((v,i,a)=>v===a[0])&&ds.map(E).some(Boolean)?ds.map(E).find(Boolean):'15:30/16:30'),get:d=>isWork(d)?[(cells[d]||[]).find(x=>x.o==='m830')]:null,sub:(x,d)=>fri(d)?'עד 15:00':E(d)?'עד '+E(d):''}];
+  if(S.cfg.m10&&ds.some(d=>(cells[d]||[]).some(x=>x.o==='m10')))rows.push({lbl:'בוקר',hrs:'10:00–14:30',get:d=>WK(d)?[(cells[d]||[]).find(x=>x.o==='m10')]:null});
+  for(let i=0;i<ev;i++)rows.push({lbl:'ערב',hrs:'15:30/16:30–22:00',get:d=>WK(d)?[(cells[d]||[]).filter(x=>OPTS[x.o]&&OPTS[x.o].s==='e')[i]]:null,sub:x=>'מ'+OPTS[x.o].a});
   if(msOn()&&ds.includes(6))rows.push({lbl:'מוצ״ש',hrs:'צאת שבת–22:30',get:d=>d===6?(cells[d]||[]).filter(x=>x.o==='mss'):null});
   const hasN=ds.some(d=>String(notes[d]||'').trim());
   try{await document.fonts.load('700 24px Rubik');await document.fonts.load('600 22px Assistant')}catch(e){}
@@ -604,7 +617,7 @@ function cloneCells(){return JSON.parse(JSON.stringify((S.sched&&S.sched.cells)|
 function pubCells(){const c=cloneCells();Object.values(c).forEach(l=>l.forEach(x=>x.n=nameOf(x.e)));return c}
 function waText(){const ds=days();let t=`*סידור עבודה ${BR} ${dDate(S.wk,ds[0])} עד ${dDate(S.wk,ds[ds.length-1])}*\n`;
   ds.forEach(d=>{const c=cellsOf(d),m=c.filter(x=>OPTS[x.o]&&OPTS[x.o].s==='m').sort((a,b)=>OPTS[a.o].a.localeCompare(OPTS[b.o].a)),e=c.filter(x=>OPTS[x.o]&&OPTS[x.o].s==='e');
-    const xs=c.filter(x=>x.o==='mss'),ap=c.filter(x=>x.o==='a630');t+=`\n*${DAYS[d]} ${dDate(S.wk,d)}*\n`+(isWork(d)&&bakeOn()?`אפייה: ${ap.map(x=>nameOf(x.e)+' 06:30–14:30').join(', ')||'—'}\n`:'')+(isWork(d)?`בוקר: ${m.map(x=>nameOf(x.e)+' '+tLabel(x.o,d)).join(', ')||'—'}\nערב: ${e.map(x=>nameOf(x.e)+' '+tLabel(x.o,d)).join(', ')||'—'}\n`:'')+(d===6&&msOn()?`מוצ״ש (צאת שבת–22:30): ${xs.map(x=>nameOf(x.e)).join(', ')||'—'}\n`:'')});return t}
+    const xs=c.filter(x=>x.o==='mss'),ap=c.filter(x=>x.o==='a630');t+=`\n*${DAYS[d]} ${dDate(S.wk,d)}*\n`+(isWork(d)&&bakeOn()&&!fri(d)?`אפייה: ${ap.map(x=>nameOf(x.e)+' 06:30–14:30').join(', ')||'—'}\n`:'')+(isWork(d)&&fri(d)?`בוקר: ${m.map(x=>nameOf(x.e)+' '+tLabel(x.o,d)).join(', ')||'—'}\n`:isWork(d)?`בוקר: ${m.map(x=>nameOf(x.e)+' '+tLabel(x.o,d)).join(', ')||'—'}\nערב: ${e.map(x=>nameOf(x.e)+' '+tLabel(x.o,d)).join(', ')||'—'}\n`:'')+(d===6&&msOn()?`מוצ״ש (צאת שבת–22:30): ${xs.map(x=>nameOf(x.e)).join(', ')||'—'}\n`:'')});return t}
 
 /* ---------- export ---------- */
 async function loadX(){if(window.XLSX)return window.XLSX;await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)});return window.XLSX}
@@ -668,6 +681,7 @@ document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-ac
   case 'copyPrev':{const p=(S.avail.weeks||{})[addDays(S.wk,-7)];if(!p||!canEditWk(S.wk))break;S.pick=JSON.parse(JSON.stringify(p.picks||{}));S.dirty=true;S.ok='הועתק. בדוק ושלח.';break}
   case 'pick':{if(!canEditWk(S.wk))break;const p={...getPicks()};if(!ds.o)delete p[ds.d];else{const c=pk(p,ds.d);p[ds.d]=c.includes(ds.o)?c.filter(x=>x!==ds.o):[...c,ds.o];if(!p[ds.d].length)delete p[ds.d]}S.pick=p;S.dirty=true;break}
   case 'submit':{if(!canEditWk(S.wk)){S.msg='ההגשה לשבוע הזה כבר נסגרה.';break}
+    {const lv=new Set(myReqs().filter(r=>r.st==='pending'||r.st==='approved').flatMap(r=>r.dates)),off=offDays(getPicks(),lv);if(off.length>maxOff()&&!offEx(S.wk)){S.msg=`אפשר לסמן עד ${maxOff()} ימים כלא זמין (סימנת ${off.length}). לימים נוספים צריך להגיש בקשת חופש, או לבקש מהמנהל אישור מיוחד.`;break}}
     const picks={...getPicks()},prev=(S.avail.weeks||{})[S.wk],note=S.form.note!==undefined?S.form.note:(prev&&prev.note)||'';
     if(prev&&JSON.stringify(prev.picks||{})===JSON.stringify(picks)&&(prev.note||'')===note){S.dirty=false;S.pick=null;S.ok='אין שינויים לשמור';break}
     const wk=S.wk,now=Date.now();
@@ -700,6 +714,8 @@ document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-ac
   case 'reject':{if(S.confirm!=='rej_'+ds.e){S.confirm='rej_'+ds.e;break}S.confirm=null;await run(()=>sb.from('profiles').update({active:false}).eq('id',ds.e),'ההרשמה נדחתה. אפשר לאשר אותו בהמשך מרשימת המושבתים.');break}
   case 'role':{if(S.confirm!=='role_'+ds.e){S.confirm='role_'+ds.e;break}S.confirm=null;const s=S.staff.find(x=>x.id===ds.e);if(!s)break;const to=s.role==='manager'?'employee':'manager';
     await run(()=>sb.from('profiles').update({role:to}).eq('id',ds.e),to==='manager'?'ניתנה הרשאת מנהל':'הרשאת המנהל הוסרה');break}
+  case 'offEx':{const has=((S.accts[ds.e]||{}).offEx||{})[S.wk];
+    await run(()=>has?sb.from('off_exempt').delete().eq('user_id',ds.e).eq('week',S.wk):sb.from('off_exempt').insert({user_id:ds.e,week:S.wk}),has?'האישור המיוחד בוטל':'העובד יכול לסמן לשבוע הזה יותר ימים כלא זמין');break}
   case 'unlock':{const has=((S.accts[ds.e]||{}).unlock||{})[S.wk];
     await run(()=>has?sb.from('unlocks').delete().eq('user_id',ds.e).eq('week',S.wk):sb.from('unlocks').insert({user_id:ds.e,week:S.wk}),has?'העריכה ננעלה שוב':'העובד יכול לערוך שוב את הזמינות לשבוע הזה');break}
   case 'hist':S.tab='hist';S.open={[ds.e]:true};break;
@@ -724,6 +740,8 @@ document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-ac
   case 'ev':saveCfg({ev:Math.min(6,Math.max(1,(+S.cfg.ev||1)+ +ds.n))});return;
   case 'm10':saveCfg({m10:!S.cfg.m10});return;
   case 'msT':saveCfg({ms:!msOn()});return;
+  case 'maxOff':saveCfg({maxOff:Math.min(7,Math.max(0,maxOff()+ +ds.n))});return;
+  case 'friT':saveCfg({friShort:S.cfg.friShort===false});return;
   case 'bakeT':saveCfg({bake:!bakeOn()});return;
   case 'msN':saveCfg({msNeed:Math.min(6,Math.max(1,(+S.cfg.msNeed||1)+ +ds.n))});return;
   }}finally{busy.delete(a)}
