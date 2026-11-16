@@ -385,7 +385,7 @@ function mgr(){
 function dash(){
   const ow=openWeek(),st=S.staff.filter(s=>active(s)&&s.role!=='manager'),done=st.filter(s=>((S.availAll[s.id]||{}).weeks||{})[ow]),not=st.filter(s=>!done.includes(s));
   const R=allReqs(),c=k=>R.filter(r=>r.st===k).length,ev=events(),nw=ev.filter(e=>e.t>S.seen);
-  const pd=pendingStaff();let h=pd.length?`<div class="warn"><b>${pd.length} נרשמים חדשים ממתינים לאישור שלך:</b> ${pd.map(s=>esc(s.name)).join(', ')} <button class="x" data-act="tab" data-v="staff">לאישור</button></div>`:'';
+  const pd=pendingStaff();let h=backupDue()?`<div class="warn"><b>לא נעשה גיבוי מהמכשיר הזה בשבוע האחרון.</b> מומלץ להוריד גיבוי פעם בשבוע. <button class="x" data-act="backup">הורדת גיבוי עכשיו</button></div>`:'';h+=pd.length?`<div class="warn"><b>${pd.length} נרשמים חדשים ממתינים לאישור שלך:</b> ${pd.map(s=>esc(s.name)).join(', ')} <button class="x" data-act="tab" data-v="staff">לאישור</button></div>`:'';
   h+=`<h2>מחזור ההגשה הפתוח: שבוע ${fmtD(ow)} עד ${fmtD(addDays(ow,6))}</h2><p class="mute" style="margin-top:-6px">ההגשה נסגרת אוטומטית ביום רביעי ${fmtD(deadline(ow))} ב-13:00 שעון ישראל (נותרו ${left(ow)}).</p>`;
   h+=`<div class="tiles"><div class="tile"><b>${done.length}</b>הגישו זמינות</div><div class="tile ${not.length?'hot':''}"><b>${not.length}</b>עוד לא הגישו</div>
    <button class="tile ${c('pending')?'hot':''}" data-act="lf" data-v="pending"><b>${c('pending')}</b>חופשות ממתינות</button><button class="tile" data-act="lf" data-v="approved"><b>${c('approved')}</b>חופשות שאושרו</button><button class="tile" data-act="lf" data-v="rejected"><b>${c('rejected')}</b>חופשות שנדחו</button></div>`;
@@ -511,7 +511,7 @@ function staffTab(){
   return h+'</div>'}
 function histTab(){
   const st=S.staff;
-  let h=`<div class="chips" style="margin-bottom:16px"><button class="pri" data-act="xlsx">הורדת דוח Excel מלא</button><button data-act="backup">הורדת גיבוי (JSON)</button></div>`;
+  let h=`<div class="chips" style="margin-bottom:16px"><button class="pri" data-act="xlsx">הורדת דוח Excel מלא</button><button data-act="backup">הורדת גיבוי מלא</button></div>`;
   h+=`<h2>זמינות לשבוע ${fmtD(S.wk)}</h2><div class="scroll"><table class="stack"><thead><tr><th>עובד</th><th>סטטוס</th><th>הגשה ראשונה</th><th>עדכון אחרון</th><th>עדכונים</th></tr></thead><tbody>`;
   h+=st.map(s=>{const x=((S.availAll[s.id]||{}).weeks||{})[S.wk];const op=S.open[s.id];
     let r=`<tr><td data-l="עובד"><b>${esc(s.name)}</b>${active(s)?'':' <span class="mute">(מושבת)</span>'}</td><td data-l="סטטוס">${x?'<span class="st approved">הגיש</span>':'<span class="st rejected">לא הגיש</span>'}</td><td data-l="הגשה ראשונה" class="n">${x?fmtT(x.first&&x.first.t):'—'}</td><td data-l="עדכון אחרון" class="n">${x?fmtT(x.t):'—'}</td><td data-l="עדכונים">${x?`${Math.max(0,(x.hist||[]).length-1)} <button class="x" data-act="open" data-e="${s.id}">${op?'הסתר':'פרטים'}</button>`:'—'}</td></tr>`;
@@ -647,8 +647,15 @@ async function exportX(){
   const buf=X.write(wb,{bookType:'xlsx',type:'array'});
   saveFile(`RONCH-קריון-דוח-${ilToday()}.xlsx`,buf,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');S.ok='הקובץ ירד למכשיר'
   render()}
-function backup(){const data={exported:new Date().toISOString(),settings:S.cfg,staff:S.staff,accounts:S.accts,availability:S.availAll,leave:S.leaveAll,schedules:S.schedAll,published:S.pubAll};
-  saveFile(`RONCH-גיבוי-${ilToday()}.json`,JSON.stringify(data,null,1),'application/json');S.ok='הגיבוי ירד למכשיר';render()}
+async function backup(){
+  const T=['profiles','settings','availability','availability_history','unlocks','off_exempt','leave_requests','schedules','published_schedules','manager_state'];
+  const data={app:'RONCH-kiryon',version:2,exported:new Date().toISOString(),tables:{}};
+  S.ok='מכין גיבוי…';render();
+  for(const t of T){const {data:rows,error}=await sb.from(t).select('*');if(error){S.ok='';S.msg='הגיבוי נכשל ('+t+'): '+errMsg(error);render();return}data.tables[t]=rows}
+  saveFile(`RONCH-גיבוי-${ilToday()}.json`,JSON.stringify(data),'application/json');
+  try{localStorage.setItem('ronch_last_backup',String(Date.now()))}catch(e){}
+  S.ok='הגיבוי ירד למכשיר. שמור אותו במקום בטוח (Drive / מייל לעצמך).';render()}
+function backupDue(){let t=0;try{t=+localStorage.getItem('ronch_last_backup')||0}catch(e){return false}return Date.now()-t>7*864e5}
 
 /* ---------- events ---------- */
 document.addEventListener('input',e=>{const t=e.target;if(!t.id)return;S.form[t.id]=t.value;if(t.id==='note'&&!S.dirty){S.dirty=true}});
@@ -735,7 +742,7 @@ document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-ac
   case 'imgDl':fetch(S.imgUrl).then(r=>r.blob()).then(b=>saveFile(`סידור-עבודה-${short(S.wk).replace('.','-')}.png`,b,'image/png'));return;
   case 'imgClose':if(S.imgUrl)URL.revokeObjectURL(S.imgUrl);S.imgUrl=null;break;
   case 'xlsx':exportX();return;
-  case 'backup':backup();return;
+  case 'backup':await backup();return;
   case 'savePhone':await saveCfg({mgrPhone:(S.form.mgrPhone??'').trim()});S.ok='נשמר';break;
   case 'tg':{const t=S.tg[ds.e]=S.tg[ds.e]||{};t[ds.s]=Math.max(0,(t[ds.s]||0)+ +ds.n);break}
   case 'tgAll':{let k=0;people().forEach(e=>{const p=(S.subs[e.id]&&S.subs[e.id].picks)||{};const c=s=>days().filter(d=>hasS(p,d,s)).length;S.tg[e.id]={a:c('a'),m:c('m'),e:c('e'),x:c('x')};k+=c('a')+c('m')+c('e')+c('x')});if(!k)S.msg='אין עדיין הגשות לשבוע הזה, אז אין מה למלא.';else S.ok='מולא לפי כל מה שהעובדים הגישו';break}
