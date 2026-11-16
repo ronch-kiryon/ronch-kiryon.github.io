@@ -197,7 +197,10 @@ const active=st=>{const a=S.accts[st.id]||{};return a.active!==false&&a.approved
 const pendingStaff=()=>S.staff.filter(s=>{const a=S.accts[s.id]||{};return a.approved===false&&a.active!==false});
 function people(){const sub=subsMap(S.wk);
   return S.staff.filter(s=>active(s)&&(s.role!=='manager'||sub[s.id])).map(s=>({id:s.id,name:s.name,phone:s.phone})).sort((x,y)=>String(x.name).localeCompare(String(y.name),'he'))}
+function subCount(id){const p=(S.subs[id]&&S.subs[id].picks)||{};const c=x=>days().filter(d=>hasS(p,d,x)).length;return {a:c('a'),m:c('m'),e:c('e'),x:c('x')}}
+function tgOf(id){return S.tg[id]||subCount(id)}
 function subsMap(wk){const m={};S.staff.filter(active).forEach(s=>{const x=((S.availAll[s.id]||{}).weeks||{})[wk];if(x)m[s.id]=x});return m}
+const flexOn=id=>((S.cfg&&S.cfg.flex)||[]).includes(id);
 const onLeave=(uid,k)=>allReqs().some(r=>r.uid===uid&&r.st==='approved'&&r.dates.includes(k));
 function nameOf(id){const s=S.staff.find(x=>x.id===id);if(s)return s.name;
   const c=Object.values((S.pub&&S.pub.cells)||{}).flat().find(x=>x.e===id);return (c&&c.n)||'עובד'}
@@ -402,10 +405,10 @@ const addHelp=()=>`כדי להוסיף עובד: שלח לו את הקישור �
 function subsTab(){
   const ds=days(),P=people(),n=P.filter(e=>S.subs[e.id]).length;
   const pdn=pendingStaff().length;
-  let h=`<p class="mute" style="margin-top:0">${n} מתוך ${P.length} עובדים הגישו לשבוע הזה. ${isLockedWk(S.wk)?'ההגשה לשבוע הזה נסגרה.':'ההגשה עדיין פתוחה, וההגשות מופיעות כאן מיד כשעובד שולח או מעדכן.'} קבע לכל עובד כמה משמרות לתת לו, ואז לחץ "שבץ אוטומטית".</p>${!P.length?`<div class="note">${pdn?`יש ${pdn} נרשמים שממתינים לאישור שלך. עד שתאשר אותם הם לא מופיעים כאן. <button class="x" data-act="tab" data-v="staff">לאישור</button>`:'עוד אין עובדים מאושרים.'}</div>`:''}<div class="grid">`;
+  let h=`<p class="mute" style="margin-top:0">${n} מתוך ${P.length} עובדים הגישו לשבוע הזה. ${isLockedWk(S.wk)?'ההגשה לשבוע הזה נסגרה.':'ההגשה עדיין פתוחה, וההגשות מופיעות כאן מיד כשעובד שולח או מעדכן.'} כברירת מחדל כל עובד מקבל את כל מה שהגיש. אפשר להוריד כמויות עם −, ואז ללחוץ "שבץ אוטומטית".</p>${!P.length?`<div class="note">${pdn?`יש ${pdn} נרשמים שממתינים לאישור שלך. עד שתאשר אותם הם לא מופיעים כאן. <button class="x" data-act="tab" data-v="staff">לאישור</button>`:'עוד אין עובדים מאושרים.'}</div>`:''}<div class="grid">`;
   h+=P.map(e=>{const sub=S.subs[e.id],p=(sub&&sub.picks)||{};
     const has=s=>ds.filter(d=>hasS(p,d,s)).length;
-    const tg=S.tg[e.id]||{};
+    const tg=tgOf(e.id);
     const tags=ds.flatMap(d=>pk(p,d).map(o=>`<span class="tag ${OPTS[o].s}">${DAYS[d]} · <span dir="ltr">${o==='mor'?'בוקר':tLabel(o,fri(d)?d:null)}</span></span>`)).join(' ');
     const st=s=>`<div class="step"><span>${sName(s)}</span><button data-act="tg" data-e="${e.id}" data-s="${s}" data-n="-1" aria-label="פחות">−</button><output>${tg[s]||0}</output><button data-act="tg" data-e="${e.id}" data-s="${s}" data-n="1" aria-label="יותר" ${(tg[s]||0)>=has(s)?'disabled':''}>+</button><span class="mute">מתוך ${has(s)}</span></div>`;
     return `<div class="card"><div class="hd"><b>${esc(e.name)}</b><span class="mute">${sub?'הגיש '+has('m')+' ימי בוקר, '+has('e')+' ימי ערב'+(has('x')?', מוצ״ש':''):'לא הגיש'}</span></div>
@@ -450,15 +453,21 @@ function addOpts(d,o){
   const c=cellsOf(d),busy=new Set(c.map(x=>x.e));
   if(o==='x')o='mss';const isE=o==='e',P=e=>pk(S.subs[e.id]&&S.subs[e.id].picks,d),fits=e=>isE?P(e).some(x=>OPTS[x].s==='e'):(P(e).includes(o)||(OPTS[o]&&OPTS[o].s==='m'&&P(e).includes('mor')));
   const k=addDays(S.wk,d),free=people().filter(e=>!busy.has(e.id)&&!onLeave(e.id,k)),a=free.filter(fits),b=free.filter(e=>!fits(e));
-  const one=(e,off)=>{if(!isE)return `<option value="${e.id}|${o}">${esc(e.name)}${off?' (לא הגיש)':''}</option>`;
+  const why=e=>{const sb2=S.subs[e.id];if(!sb2)return ' (לא הגיש לשבוע הזה)';return raw(sb2.picks||{},d).includes('off')?' (סימן לא זמין ביום הזה)':' (הגיש משמרת אחרת ביום הזה)'};
+  const one=(e,off)=>{if(!isE)return `<option value="${e.id}|${o}">${esc(e.name)}${off?why(e):''}</option>`;
     if(!off)return P(e).filter(x=>OPTS[x].s==='e').map(x=>`<option value="${e.id}|${x}">${esc(e.name)} · ${OPTS[x].a}</option>`).join('');
-    return ['e330','e430'].map(x=>`<option value="${e.id}|${x}">${esc(e.name)} · ${OPTS[x].a} (לא הגיש)</option>`).join('')};
-  return `<option value="">${isE?'+ הוספה לערב':o==='mss'?'+ הוספה למוצ״ש':'+ הוספה'}</option>${a.length?`<optgroup label="הגישו לזה">${a.map(e=>one(e,0)).join('')}</optgroup>`:''}${b.length?`<optgroup label="אחרים">${b.map(e=>one(e,1)).join('')}</optgroup>`:''}`;
+    return ['e330','e430'].map(x=>`<option value="${e.id}|${x}">${esc(e.name)} · ${OPTS[x].a}${why(e)}</option>`).join('')};
+  const fx=S.staff.filter(e=>flexOn(e.id)&&active(e)&&!c.some(x=>x.e===e.id&&(isE?OPTS[x.o]&&OPTS[x.o].s==='e':x.o===o))&&!a.some(y=>y.id===e.id));
+  const fone=e=>{const lv=onLeave(e.id,k)?' (בחופש)':'';return isE?['e330','e430'].map(x=>`<option value="${e.id}|${x}">${esc(e.name)} · ${OPTS[x].a}${lv}</option>`).join(''):`<option value="${e.id}|${o}">${esc(e.name)}${lv}</option>`};
+  const bb=b.filter(e=>!flexOn(e.id));
+  return `<option value="">${isE?'+ הוספה לערב':o==='mss'?'+ הוספה למוצ״ש':'+ הוספה'}</option>${fx.length?`<optgroup label="שיבוץ חופשי">${fx.map(fone).join('')}</optgroup>`:''}${a.length?`<optgroup label="הגישו לזה">${a.map(e=>one(e,0)).join('')}</optgroup>`:''}${bb.length?`<optgroup label="אחרים">${bb.map(e=>one(e,1)).join('')}</optgroup>`:''}`;
 }
 function schedTab(){
   const pub=S.sched&&S.sched.published,ds=days();
   let h='';
   h+=imgPreview();
+  {const st=S.sched&&S.sched.t;const late=st?people().filter(e=>S.subs[e.id]&&S.subs[e.id].t>st):[];
+   if(late.length&&!pub)h+=`<div class="warn"><b>הגשות שהתעדכנו אחרי השינוי האחרון בסידור:</b> ${late.map(e=>esc(e.name)).join(', ')}. כדי שהסידור יתחשב בהן, לחץ שוב "שבץ אוטומטית" בלשונית "הגשות ושיבוץ" (זה יחליף את הטיוטה), או עדכן ידנית. <button class="x" data-act="tab" data-v="subs">להגשות</button></div>`}
   if(S.warn.length)h+=`<div class="warn"><b>לא הצלחתי לשבץ הכול:</b><ul>${S.warn.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`;
   const iss=issues();if(iss.length)h+=`<div class="warn"><b>כדאי לבדוק:</b><ul>${iss.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`;
   if(unpubDirty(S.wk))h+=`<div class="warn"><b>יש שינויים שהעובדים עוד לא רואים.</b> לחץ "עדכון הפרסום" למטה.</div>`;
@@ -500,7 +509,7 @@ function staffTab(){
     <div class="mute" style="font-size:14px">נרשם ${fmtT(s.t)} · הגיש ב-${wks} שבועות</div>
     ${ed?`<label>שם<input id="ed_name" value="${esc(f.ed_name??s.name)}"></label><label>טלפון<input id="ed_phone" inputmode="tel" value="${esc(f.ed_phone??(s.phone||''))}"></label><div class="chips"><button class="pri" data-act="saveStaff" data-e="${s.id}">שמירה</button><button data-act="editStaff" data-e="">ביטול</button></div>`:
     `<div class="chips"><button data-act="editStaff" data-e="${s.id}">עריכה</button>
-    ${active(s)?`<button data-act="unlock" data-e="${s.id}" ${lk?'':'disabled'}>${ul?'נעילה מחדש':'פתיחת עריכה'} לשבוע ${short(S.wk)}</button><button data-act="offEx" data-e="${s.id}">${(a.offEx||{})[S.wk]?'ביטול אישור מיוחד':'אישור מיוחד: יותר ימים לא זמינים'} לשבוע ${short(S.wk)}</button>`:''}
+    ${active(s)?`<button data-act="flex" data-e="${s.id}">${flexOn(s.id)?'שיבוץ חופשי: פעיל (לכיבוי)':'הפעלת שיבוץ חופשי'}</button>`:''}${active(s)?`<button data-act="unlock" data-e="${s.id}" ${lk?'':'disabled'}>${ul?'נעילה מחדש':'פתיחת עריכה'} לשבוע ${short(S.wk)}</button><button data-act="offEx" data-e="${s.id}">${(a.offEx||{})[S.wk]?'ביטול אישור מיוחד':'אישור מיוחד: יותר ימים לא זמינים'} לשבוע ${short(S.wk)}</button>`:''}
     <button data-act="hist" data-e="${s.id}">היסטוריה</button>
     ${s.id!==S.uid?`<button data-act="role" data-e="${s.id}">${S.confirm==='role_'+s.id?'בטוח? לחץ שוב':s.role==='manager'?'הסרת הרשאת מנהל':'מתן הרשאת מנהל'}</button>`:''}
     ${s.id===S.uid?'':`<button class="danger" data-act="toggleActive" data-e="${s.id}">`}${s.id===S.uid?'':`${S.confirm==='act_'+s.id?'בטוח? לחץ שוב':active(s)?'השבתה':'הפעלה מחדש'}</button>`}</div>`}</div>`};
@@ -539,7 +548,7 @@ function setTab(){
 function auto(){
   const ds=days(),ev=+S.cfg.ev||1,cells={},warn=[];ds.forEach(d=>cells[d]=[]);
   const ids=people().map(e=>e.id).filter(id=>S.subs[id]),need={};
-  const TY=TYPES();ids.forEach(id=>{const t=S.tg[id]||{};need[id]={a:TY.includes('a')?+t.a||0:0,m:+t.m||0,e:+t.e||0,x:TY.includes('x')?+t.x||0:0}});
+  const TY=TYPES();ids.forEach(id=>{const t=tgOf(id);need[id]={a:TY.includes('a')?+t.a||0:0,m:+t.m||0,e:+t.e||0,x:TY.includes('x')?+t.x||0:0}});
   const P=id=>S.subs[id].picks||{};
   const load=(d,s)=>cells[d].filter(x=>OPTS[x.o].s===s).length;
   const ev2=(id,d)=>(cells[d]||[]).some(x=>x.e===id&&OPTS[x.o].s==='e'),mo2=(id,d)=>(cells[d]||[]).some(x=>x.e===id&&(x.o==='m7'||x.o==='m830'||x.o==='a630'));
@@ -713,6 +722,7 @@ document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-ac
     const r={dates:[...S.calSel],reason:f.lvReason,detail:(f.lvDetail||'').trim()};
     if(await run(()=>sb.from('leave_requests').insert({user_id:S.uid,...r}))){S.sentLeave=r;S.ok='LEAVE_SENT';S.calSel=[];S.form.lvReason='';S.form.lvDetail='';window.scrollTo(0,0)}break}
   case 'noConfirm':S.confirm=null;break;
+  case 'flex':{const f=((S.cfg&&S.cfg.flex)||[]).filter(x=>x!==ds.e);if(!flexOn(ds.e))f.push(ds.e);await saveCfg({flex:f});S.ok=flexOn(ds.e)?'שיבוץ חופשי הופעל: אפשר לשבץ אותו בכל משמרת מ"הוספה"':'שיבוץ חופשי כובה';break}
   case 'delLeave':{if(S.confirm!=='dl_'+ds.id){S.confirm='dl_'+ds.id;break}S.confirm=null;await run(()=>sb.rpc('mgr_delete_leave',{rid:ds.id}),'הבקשה נמחקה');break}
   case 'delAvail':{if(S.confirm!=='da_'+ds.e){S.confirm='da_'+ds.e;break}S.confirm=null;delete S.tg[ds.e];await run(()=>sb.rpc('mgr_delete_avail',{uid:ds.e,w:S.wk}),'ההגשה נמחקה. העובד יכול להגיש מחדש.');break}
   case 'cancelLeave':await run(()=>sb.rpc('cancel_leave',{rid:ds.id}),'הבקשה בוטלה');break;
@@ -744,10 +754,10 @@ document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-ac
   case 'xlsx':exportX();return;
   case 'backup':await backup();return;
   case 'savePhone':await saveCfg({mgrPhone:(S.form.mgrPhone??'').trim()});S.ok='נשמר';break;
-  case 'tg':{const t=S.tg[ds.e]=S.tg[ds.e]||{};t[ds.s]=Math.max(0,(t[ds.s]||0)+ +ds.n);break}
+  case 'tg':{const t=S.tg[ds.e]=S.tg[ds.e]||{...subCount(ds.e)};t[ds.s]=Math.max(0,(t[ds.s]||0)+ +ds.n);break}
   case 'tgAll':{let k=0;people().forEach(e=>{const p=(S.subs[e.id]&&S.subs[e.id].picks)||{};const c=s=>days().filter(d=>hasS(p,d,s)).length;S.tg[e.id]={a:c('a'),m:c('m'),e:c('e'),x:c('x')};k+=c('a')+c('m')+c('e')+c('x')});if(!k)S.msg='אין עדיין הגשות לשבוע הזה, אז אין מה למלא.';else S.ok='מולא לפי כל מה שהעובדים הגישו';break}
-  case 'tgZero':S.tg={};S.ok='הכמויות אופסו';break;
-  case 'auto':{if(!Object.values(S.tg).some(t=>(+t.a||0)+(+t.m||0)+(+t.e||0)+(+t.x||0)>0)){S.msg='קבע קודם לכל עובד כמה משמרות לתת לו (או לחץ "כל מה שהגישו").';break}const r=auto();S.warn=r.warn;S.tab='sched';saveSched({cells:r.cells,targets:JSON.parse(JSON.stringify(S.tg))});window.scrollTo(0,0);return}
+  case 'tgZero':S.tg={};people().forEach(e=>S.tg[e.id]={a:0,m:0,e:0,x:0});S.ok='הכמויות אופסו';break;
+  case 'auto':{const eff={};people().filter(e=>S.subs[e.id]).forEach(e=>eff[e.id]=tgOf(e.id));if(!Object.values(eff).some(t=>(+t.a||0)+(+t.m||0)+(+t.e||0)+(+t.x||0)>0)){S.msg='אין משמרות לשבץ: אף עובד לא הגיש, או שכל הכמויות על 0.';break}const r=auto();S.warn=r.warn;S.tab='sched';saveSched({cells:r.cells,targets:eff});window.scrollTo(0,0);return}
   case 'rm':{const cells=cloneCells();cells[ds.d]=(cells[ds.d]||[]).filter(x=>x.e!==ds.e);saveSched({cells});return}
   case 'pub':if(ds.v==='1'){const c=pubCells(),wk=S.wk;
       if(await run(()=>sb.from('published_schedules').upsert({week:wk,cells:c,notes:(S.sched&&S.sched.notes)||{},published_at:new Date().toISOString()})))await saveSched({published:true},'פורסם. העובדים רואים את הסידור.')}
